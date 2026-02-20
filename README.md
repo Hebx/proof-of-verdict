@@ -76,7 +76,13 @@ Challenge → Debate Rounds → Judge Verdict → EIP-712 Proof → On-chain Set
 
 ## Deployment
 
-**Base Sepolia** (MoltCourt legacy): `0x1324a1E9ECECa60c9DB8dc31f0F5f04a65cE5c5c`
+**Base Sepolia** (Chain ID: 84532)
+
+| Contract | Address |
+|----------|---------|
+| VerdictRegistry | [`0xf68dDB6c1A075F29A5b89eb0a24728652f4Ab962`](https://sepolia.basescan.org/address/0xf68dDB6c1A075F29A5b89eb0a24728652f4Ab962) |
+| PovEscrowERC20 | [`0xEd0cdbfD19b8e3e1f0E6BB95e047731EbC8a4B82`](https://sepolia.basescan.org/address/0xEd0cdbfD19b8e3e1f0E6BB95e047731EbC8a4B82) |
+| MoltCourt (legacy) | `0x1324a1E9ECECa60c9DB8dc31f0F5f04a65cE5c5c` |
 
 ### Deploy New Contracts
 ```bash
@@ -100,7 +106,7 @@ bun run scripts/verdict-listener.ts
 | Phase | Focus | Status |
 |-------|-------|--------|
 | **Phase 0** | Rebrand MoltCourt → ProofOfVerdict, bootstrap repo | Done |
-| **Phase 1** | Contracts + Agents + Listener pipeline | **Shipping** |
+| **Phase 1** | Contracts + Agents + Listener pipeline | **Deployed** |
 | **Phase 2** | EigenCompute TEE attested verdicts | Scaffold ready |
 | **Phase 3** | Staking, leaderboards, mainnet | Planned |
 
