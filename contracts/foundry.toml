@@ -1,0 +1,17 @@
+[profile.default]
+bytecode_hash = "none"
+evm_version = "cancun"
+libs = ["lib"]
+out = "out"
+solc_version = "0.8.26"
+solc = "/home/openclaw/.local/share/svm/0.8.26/solc-0.8.26"
+src = "src"
+test = "test"
+remappings = [
+  "forge-std/=lib/forge-std/src/",
+  "openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/"
+]
+
+[lint]
+exclude_lints = ["screaming-snake-case-immutable", "screaming-snake-case-const"]
+lint_on_build = false
