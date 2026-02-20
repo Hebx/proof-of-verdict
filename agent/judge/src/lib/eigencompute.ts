@@ -1,69 +1,32 @@
 /**
- * EigenCompute TEE Attestation Module
+ * EigenCompute TEE Runtime Module
  *
- * Phase 2 integration — wraps judge verdict signing inside a TEE (Trusted Execution Environment)
- * via EigenCompute. The attestation proves the verdict was produced by an unmodified judge
- * running inside a secure enclave, making it cryptographically verifiable on-chain.
+ * This module runs INSIDE the EigenCompute TEE (Intel TDX via Google Confidential Space).
+ * The judge agent is deployed as a Docker container to EigenCompute, where:
  *
- * Flow:
- *   1. Judge produces verdict inside TEE
- *   2. TEE signs verdict using enclave-bound key
- *   3. Attestation report is generated (quote)
- *   4. On-chain verifier checks attestation + verdict signature
+ *   1. KMS injects a deterministic MNEMONIC (wallet bound to this TEE instance)
+ *   2. Docker digest is recorded on-chain for code verifiability
+ *   3. Intel TDX provides hardware-isolated execution (encrypted memory)
+ *   4. EigenAI provides deterministic, verifiable LLM inference
+ *
+ * The combination means:
+ *   - The judge code is verifiable (Docker digest on-chain)
+ *   - The inference is reproducible (EigenAI deterministic)
+ *   - The signing key is TEE-bound (KMS mnemonic)
+ *   - No one (including the operator) can tamper with execution
  */
 
-export interface TeeAttestation {
-  enclaveId: string;
-  quote: string;
-  timestamp: number;
-  verdictDigest: string;
-  signature: string;
+export function isTeeEnvironment(): boolean {
+  const mnemonic = process.env.MNEMONIC;
+  return !!mnemonic && mnemonic !== "test test test test test test test test test test test junk";
 }
 
-export interface EigenComputeConfig {
-  endpoint: string;
-  enclaveImage: string;
-  attestationMode: "sgx" | "sev" | "nitro";
-}
-
-const DEFAULT_CONFIG: EigenComputeConfig = {
-  endpoint: process.env.EIGENCOMPUTE_ENDPOINT || "https://api.eigencompute.io",
-  enclaveImage:
-    process.env.EIGENCOMPUTE_ENCLAVE_IMAGE || "pov-judge:latest",
-  attestationMode:
-    (process.env.EIGENCOMPUTE_ATTESTATION_MODE as EigenComputeConfig["attestationMode"]) ||
-    "sgx",
-};
-
-export async function attestVerdict(
-  verdictDigest: string,
-  verdictPayload: Record<string, unknown>,
-  config: EigenComputeConfig = DEFAULT_CONFIG
-): Promise<TeeAttestation> {
-  // Phase 2 — when EigenCompute is live, this calls the TEE enclave
-  // For now, return a placeholder that follows the attestation schema
-  console.log(
-    `[EigenCompute] Attestation requested for digest: ${verdictDigest}`
-  );
-  console.log(
-    `[EigenCompute] Mode: ${config.attestationMode}, Enclave: ${config.enclaveImage}`
-  );
-
+export function getTeeInfo() {
   return {
-    enclaveId: `eigen-enclave-${Date.now()}`,
-    quote: `placeholder-attestation-quote`,
-    timestamp: Math.floor(Date.now() / 1000),
-    verdictDigest,
-    signature: `0x${"00".repeat(65)}`,
+    isTee: isTeeEnvironment(),
+    environment: process.env.ECLOUD_ENV || "unknown",
+    appId: process.env.ECLOUD_APP_ID || "unknown",
+    enclaveType: "Intel TDX",
+    kmsProvider: "EigenLabs (Mainnet Alpha)",
   };
-}
-
-export async function verifyAttestation(
-  attestation: TeeAttestation
-): Promise<boolean> {
-  // Phase 2 — verify the TEE quote against EigenCompute's attestation service
-  console.log(
-    `[EigenCompute] Verifying attestation for enclave: ${attestation.enclaveId}`
-  );
-  return attestation.quote !== "";
 }

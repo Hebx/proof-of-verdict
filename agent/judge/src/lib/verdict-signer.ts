@@ -1,55 +1,65 @@
-import { ethers } from "ethers";
+import { getAccount } from "./tee-wallet";
+import { hashTypedData, type Hex } from "viem";
+import { baseSepolia } from "viem/chains";
 
-const VERDICT_TYPEHASH = ethers.keccak256(
-  ethers.toUtf8Bytes(
-    "Verdict(bytes32 disputeId,address winner,uint256 confidenceBps,uint256 issuedAt,uint256 deadline,uint256 nonce)"
-  )
-);
+const REGISTRY_ADDRESS = process.env.VERDICT_REGISTRY_ADDRESS as Hex;
+const CHAIN_ID = parseInt(process.env.CHAIN_ID || "84532");
+
+const domain = {
+  name: "VerdictRegistry" as const,
+  version: "1" as const,
+  chainId: CHAIN_ID,
+  verifyingContract: REGISTRY_ADDRESS,
+} as const;
+
+const types = {
+  Verdict: [
+    { name: "disputeId", type: "bytes32" },
+    { name: "winner", type: "address" },
+    { name: "confidenceBps", type: "uint256" },
+    { name: "issuedAt", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+  ],
+} as const;
 
 export interface VerdictPayload {
-  disputeId: string;
-  winner: string;
-  confidenceBps: number;
-  issuedAt: number;
-  deadline: number;
-  nonce: number;
+  disputeId: Hex;
+  winner: Hex;
+  confidenceBps: bigint;
+  issuedAt: bigint;
+  deadline: bigint;
+  nonce: bigint;
 }
 
 export interface SignedVerdict {
   payload: VerdictPayload;
-  digest: string;
-  signature: string;
+  digest: Hex;
+  signature: Hex;
+  signer: string;
 }
 
-export async function signVerdict(
-  payload: VerdictPayload,
-  signerKey: string,
-  registryAddress: string,
-  chainId: number
-): Promise<SignedVerdict> {
-  const wallet = new ethers.Wallet(signerKey);
+export async function signVerdict(payload: VerdictPayload): Promise<SignedVerdict> {
+  const account = getAccount();
 
-  const domain = {
-    name: "VerdictRegistry",
-    version: "1",
-    chainId,
-    verifyingContract: registryAddress,
+  const digest = hashTypedData({
+    domain,
+    types,
+    primaryType: "Verdict",
+    message: payload,
+  });
+
+  const signature = await account.signTypedData({
+    domain,
+    types,
+    primaryType: "Verdict",
+    message: payload,
+  });
+
+  return {
+    payload,
+    digest,
+    signature,
+    signer: account.address,
   };
-
-  const types = {
-    Verdict: [
-      { name: "disputeId", type: "bytes32" },
-      { name: "winner", type: "address" },
-      { name: "confidenceBps", type: "uint256" },
-      { name: "issuedAt", type: "uint256" },
-      { name: "deadline", type: "uint256" },
-      { name: "nonce", type: "uint256" },
-    ],
-  };
-
-  const signature = await wallet.signTypedData(domain, types, payload);
-
-  const digest = ethers.TypedDataEncoder.hash(domain, types, payload);
-
-  return { payload, digest, signature };
 }
