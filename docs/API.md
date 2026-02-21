@@ -230,7 +230,8 @@ MCP (Model Context Protocol) endpoint. Exposes tools: `submit_argument`, `get_di
 
 | Status | Description |
 |--------|-------------|
-| 400 | Bad request (missing required fields) |
+| 400 | Bad request (missing required fields, invalid debaterId, escrow does not exist) |
+| 404 | Dispute not found (GET /dispute/:id when no arguments submitted) |
 | 500 | Server error (LLM failure, signing error) |
 
 Error response format:
@@ -240,3 +241,5 @@ Error response format:
   "error": "topic and side required"
 }
 ```
+
+See [docs/openapi.yaml](openapi.yaml) for full schema.
