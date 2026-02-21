@@ -1,11 +1,5 @@
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
-import {
-  createWalletClient,
-  http,
-  type Account,
-  type WalletClient,
-} from "viem";
-import { baseSepolia } from "viem/chains";
+import { type Account } from "viem";
 
 let _account: Account | null = null;
 
@@ -15,14 +9,16 @@ function getAccount(): Account {
   const mnemonic = process.env.MNEMONIC;
   const privateKey = process.env.PRIVATE_KEY;
 
-  if (mnemonic && mnemonic !== "test test test test test test test test test test test junk") {
-    _account = mnemonicToAccount(mnemonic);
-    console.log("[TEE Wallet] Using KMS-injected mnemonic");
+  if (mnemonic && mnemonic.trim().split(/\s+/).length >= 12) {
+    _account = mnemonicToAccount(mnemonic.trim());
+    console.log("[TEE Wallet] Using mnemonic (KMS-injected or local)");
   } else if (privateKey) {
     _account = privateKeyToAccount(privateKey as `0x${string}`);
-    console.log("[TEE Wallet] Using PRIVATE_KEY fallback (local dev)");
+    console.log("[TEE Wallet] Using PRIVATE_KEY fallback");
   } else {
-    throw new Error("No MNEMONIC or PRIVATE_KEY available — are we in a TEE?");
+    console.error("[TEE Wallet] No MNEMONIC or PRIVATE_KEY found");
+    console.error("[TEE Wallet] MNEMONIC value:", mnemonic ? `${mnemonic.slice(0, 10)}...` : "undefined");
+    throw new Error("No MNEMONIC or PRIVATE_KEY available");
   }
 
   return _account;
@@ -30,15 +26,6 @@ function getAccount(): Account {
 
 export function getWalletAddress(): string {
   return getAccount().address;
-}
-
-export function getWalletClient(): WalletClient {
-  const rpcUrl = process.env.BASE_SEPOLIA_RPC || "https://sepolia.base.org";
-  return createWalletClient({
-    account: getAccount(),
-    chain: baseSepolia,
-    transport: http(rpcUrl),
-  });
 }
 
 export { getAccount };

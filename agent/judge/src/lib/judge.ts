@@ -88,7 +88,7 @@ Respond ONLY with valid JSON, no markdown:
     };
   }
 
-  const transcriptHash = hashTranscript(input);
+  const transcriptHash = keccak256(toHex(JSON.stringify(input)));
   const issuedAt = new Date().toISOString();
 
   let signedVerdict: SignedVerdict | null = null;
@@ -101,7 +101,7 @@ Respond ONLY with valid JSON, no markdown:
         winner: input.winnerAddress as Hex,
         confidenceBps: BigInt(verdict.confidenceBps),
         issuedAt: BigInt(now),
-        deadline: BigInt(now + 86400), // 24h
+        deadline: BigInt(now + 86400),
         nonce: BigInt(now),
       });
       console.log(`[Judge] Verdict signed by TEE wallet: ${signedVerdict.signer}`);
@@ -110,16 +110,5 @@ Respond ONLY with valid JSON, no markdown:
     }
   }
 
-  return {
-    verdict,
-    transcriptHash,
-    signedVerdict,
-    eigenaiModel: MODEL,
-    issuedAt,
-  };
-}
-
-function hashTranscript(input: Record<string, unknown>): string {
-  const data = JSON.stringify(input);
-  return keccak256(toHex(data));
+  return { verdict, transcriptHash, signedVerdict, eigenaiModel: MODEL, issuedAt };
 }

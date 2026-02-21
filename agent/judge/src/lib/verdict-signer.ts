@@ -1,27 +1,7 @@
 import { getAccount } from "./tee-wallet";
 import { hashTypedData, type Hex } from "viem";
-import { baseSepolia } from "viem/chains";
 
-const REGISTRY_ADDRESS = process.env.VERDICT_REGISTRY_ADDRESS as Hex;
 const CHAIN_ID = parseInt(process.env.CHAIN_ID || "84532");
-
-const domain = {
-  name: "VerdictRegistry" as const,
-  version: "1" as const,
-  chainId: CHAIN_ID,
-  verifyingContract: REGISTRY_ADDRESS,
-} as const;
-
-const types = {
-  Verdict: [
-    { name: "disputeId", type: "bytes32" },
-    { name: "winner", type: "address" },
-    { name: "confidenceBps", type: "uint256" },
-    { name: "issuedAt", type: "uint256" },
-    { name: "deadline", type: "uint256" },
-    { name: "nonce", type: "uint256" },
-  ],
-} as const;
 
 export interface VerdictPayload {
   disputeId: Hex;
@@ -39,8 +19,27 @@ export interface SignedVerdict {
   signer: string;
 }
 
+const types = {
+  Verdict: [
+    { name: "disputeId", type: "bytes32" },
+    { name: "winner", type: "address" },
+    { name: "confidenceBps", type: "uint256" },
+    { name: "issuedAt", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+  ],
+} as const;
+
 export async function signVerdict(payload: VerdictPayload): Promise<SignedVerdict> {
+  const registryAddress = process.env.VERDICT_REGISTRY_ADDRESS as Hex;
   const account = getAccount();
+
+  const domain = {
+    name: "VerdictRegistry" as const,
+    version: "1" as const,
+    chainId: CHAIN_ID,
+    verifyingContract: registryAddress,
+  };
 
   const digest = hashTypedData({
     domain,
@@ -49,6 +48,10 @@ export async function signVerdict(payload: VerdictPayload): Promise<SignedVerdic
     message: payload,
   });
 
+  if (!account.signTypedData) {
+    throw new Error("Account does not support signTypedData");
+  }
+
   const signature = await account.signTypedData({
     domain,
     types,
@@ -56,10 +59,5 @@ export async function signVerdict(payload: VerdictPayload): Promise<SignedVerdic
     message: payload,
   });
 
-  return {
-    payload,
-    digest,
-    signature,
-    signer: account.address,
-  };
+  return { payload, digest, signature, signer: account.address };
 }

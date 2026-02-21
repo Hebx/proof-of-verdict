@@ -1,27 +1,47 @@
-import { Hono } from "hono";
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
 import { judgeDebate } from "./lib/judge";
 import { getWalletAddress } from "./lib/tee-wallet";
 
-const app = new Hono();
-const port = parseInt(process.env.PORT || "3001");
+dotenv.config();
 
-app.get("/", (c) => c.json({ service: "ProofOfVerdict Judge", version: "0.1.0", status: "running" }));
+const app = express();
+const PORT = process.env.PORT || 3001;
 
-app.get("/health", (c) => c.json({ ok: true, timestamp: Date.now() }));
+app.use(cors());
+app.use(express.json());
 
-app.get("/wallet", async (c) => {
-  const address = getWalletAddress();
-  return c.json({ address });
+app.get("/", (_req, res) => {
+  res.json({
+    service: "ProofOfVerdict Judge",
+    version: "0.1.0",
+    status: "running",
+    wallet: getWalletAddress(),
+  });
 });
 
-app.post("/judge", async (c) => {
-  const body = await c.req.json();
-  const result = await judgeDebate(body);
-  return c.json(result);
+app.get("/health", (_req, res) => {
+  res.json({ ok: true, timestamp: Date.now() });
 });
 
-console.log(`[PoV Judge] Starting on port ${port}...`);
-console.log(`[PoV Judge] TEE wallet: ${getWalletAddress()}`);
-console.log(`[PoV Judge] EigenAI: ${process.env.EIGENAI_BASE_URL || "https://api.eigenai.com/v1"}`);
+app.get("/wallet", (_req, res) => {
+  res.json({ address: getWalletAddress() });
+});
 
-export default { port, fetch: app.fetch };
+app.post("/judge", async (req, res) => {
+  try {
+    const result = await judgeDebate(req.body);
+    res.json(result);
+  } catch (err) {
+    console.error("[Judge] Error:", err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.listen(Number(PORT), "0.0.0.0", () => {
+  console.log(`[PoV Judge] Running on port ${PORT}`);
+  console.log(`[PoV Judge] TEE wallet: ${getWalletAddress()}`);
+  console.log(`[PoV Judge] EigenAI: ${process.env.EIGENAI_BASE_URL || "https://api.eigenai.com/v1"}`);
+  console.log(`[PoV Judge] Health: http://0.0.0.0:${PORT}/health`);
+});
