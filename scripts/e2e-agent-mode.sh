@@ -38,7 +38,7 @@ echo "[2/5] Opening escrow..."
 cd scripts
 OPEN_OUT=$(PAYEE_ADDRESS="$PAYEE" POV_TOKEN_ADDRESS="$POV_TOKEN_ADDRESS" npm run open-escrow 2>&1)
 echo "$OPEN_OUT"
-DISPUTE_ID=$(echo "$OPEN_OUT" | grep -oE '0x[a-fA-F0-9]{64}' | tail -1)
+DISPUTE_ID=$(echo "$OPEN_OUT" | grep -oE '0x[a-fA-F0-9]{64}' | head -1)
 cd "$ROOT"
 
 if [ -z "$DISPUTE_ID" ]; then

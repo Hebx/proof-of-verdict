@@ -85,6 +85,7 @@ Required variables:
 | EIGENAI_API_KEY | EigenAI API key |
 | EIGENAI_BASE_URL | https://app.eigenai.com/api/v1 |
 | EIGENAI_MODEL | deepseek-v3.1 (recommended) |
+| BASE_SEPOLIA_RPC | **Required for agent mode** — Alchemy RPC for `/submitArgument` escrow validation |
 
 ### Build and Deploy
 

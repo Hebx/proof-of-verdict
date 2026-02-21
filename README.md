@@ -111,6 +111,8 @@ Escrow Opened → TEE Judge evaluates debate → EIP-712 signed verdict → On-c
 
 ## Live Deployment
 
+> **Verified achievements:** [Judge health](docs/ACHIEVEMENTS.md#judge-health) · [Agent-mode E2E](docs/ACHIEVEMENTS.md#agent-mode-e2e) · [ERC-8004 registration](docs/ACHIEVEMENTS.md#erc-8004-registration)
+
 ### Contracts (Base Sepolia)
 
 | Contract | Address |
@@ -241,6 +243,7 @@ ProofOfVerdict runs its AI Judge in an **EigenCompute TEE** (Intel TDX):
 | [API.md](docs/API.md) | Judge API reference |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | TEE deploy, listener, env reference |
 | [AGENT_INTEGRATION.md](docs/AGENT_INTEGRATION.md) | Agent mode, disputeId, SDK |
+| [ACHIEVEMENTS.md](docs/ACHIEVEMENTS.md) | Verified achievements (Judge health, E2E, ERC-8004) |
 | [ECOSYSTEM.md](docs/ECOSYSTEM.md) | Competitive landscape |
 | [SECURITY.md](SECURITY.md) | Secrets, vulnerability reporting |
 
