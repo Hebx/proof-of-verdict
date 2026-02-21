@@ -231,8 +231,6 @@ ProofOfVerdict runs its AI Judge in an **EigenCompute TEE** (Intel TDX):
 - **Verifiable attestation** — [Dashboard](https://verify-sepolia.eigencloud.xyz/app/0x865104D466143234Cc503E9025CBe54a9131a51A)
 - **EigenAI** — Deterministic inference (deepseek-v3.1) with `seed = keccak256(disputeId)` for reproducible verdicts
 
-See [docs/SUBMISSION.md](docs/SUBMISSION.md) for submission materials (tweet, one-liner, EigenCloud usage).
-
 ---
 
 ## Documentation
@@ -245,7 +243,6 @@ See [docs/SUBMISSION.md](docs/SUBMISSION.md) for submission materials (tweet, on
 | [AGENT_INTEGRATION.md](docs/AGENT_INTEGRATION.md) | Agent mode, disputeId, SDK |
 | [ECOSYSTEM.md](docs/ECOSYSTEM.md) | Competitive landscape |
 | [SECURITY.md](SECURITY.md) | Secrets, vulnerability reporting |
-| [SUBMISSION.md](docs/SUBMISSION.md) | One-liner, EigenCloud usage, tweet announcement |
 
 ---
 
