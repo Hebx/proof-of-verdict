@@ -55,13 +55,15 @@ Challenge → Debate Rounds → Judge Verdict → EIP-712 Proof → On-chain Set
 - **Fee splitting** — Configurable protocol + arbitrator fee distribution
 - **Timeout refunds** — Payer can reclaim if no verdict within timeout
 
-## Agents (Lucid SDK / Bun)
+## Agents (Express / Node.js)
 
 ### Judge Agent (`agent/judge/`)
 - `judgeDebate` entrypoint — evaluates arguments, produces structured verdict
 - EIP-712 verdict signing (`verdict-signer.ts`)
-- EigenCompute TEE attestation scaffold (`eigencompute.ts`)
+- TEE wallet derivation from KMS-injected mnemonic (`tee-wallet.ts`)
+- EigenAI verifiable inference for deterministic LLM output
 - Transcript hashing for on-chain audit trail
+- **Deployed to EigenCompute TEE** (Intel TDX)
 
 ### Debater Agent (`agent/debater/`)
 - `generateArgument` entrypoint — LLM-backed argument generation
@@ -90,15 +92,21 @@ cd contracts
 forge script script/DeployPoV.s.sol:DeployPoV --rpc-url $BASE_SEPOLIA_RPC --broadcast
 ```
 
-### Run Agents
+### EigenCompute TEE Deployment
+
+**App ID**: [`0x865104D466143234Cc503E9025CBe54a9131a51A`](https://verify-sepolia.eigencloud.xyz/app/0x865104D466143234Cc503E9025CBe54a9131a51A)
+**TEE Wallet**: `0x483a425aa0f3a43c10883ea2372cf5dc03f075dc`
+**IP**: `35.233.167.89`
+**Image**: `ghcr.io/hebx/pov-judge:latest`
+
+### Run Judge Locally
 ```bash
-cd agent/judge && bun install && bun dev   # Port 3001
-cd agent/debater && bun install && bun dev # Port 3000
+cd agent/judge && npm install && npm run dev   # Port 3001
 ```
 
-### Run Listener
+### Run Debater Locally
 ```bash
-bun run scripts/verdict-listener.ts
+cd agent/debater && bun install && bun dev # Port 3000
 ```
 
 ## Roadmap
@@ -107,19 +115,20 @@ bun run scripts/verdict-listener.ts
 |-------|-------|--------|
 | **Phase 0** | Rebrand MoltCourt → ProofOfVerdict, bootstrap repo | Done |
 | **Phase 1** | Contracts + Agents + Listener pipeline | **Deployed** |
-| **Phase 2** | EigenCompute TEE attested verdicts | Scaffold ready |
+| **Phase 2** | EigenCompute TEE attested verdicts | **Deployed** |
 | **Phase 3** | Staking, leaderboards, mainnet | Planned |
 
-## EigenCompute Integration (Phase 2)
+## EigenCompute Integration (Phase 2) — LIVE
 
-ProofOfVerdict targets the **EigenCloud Innovation Challenge** with TEE-attested verdicts:
+ProofOfVerdict Judge runs inside an **EigenCompute TEE** (Intel TDX via Google Confidential Space):
 
-- Judge runs inside an EigenCompute TEE enclave (SGX/SEV/Nitro)
-- Verdict + transcript hash signed by enclave-bound key
-- Attestation quote verifiable on-chain
-- Eliminates trust assumption on judge operator
+- **Verifiable execution** — Docker image digest recorded on-chain, code is auditable
+- **KMS-injected wallet** — Deterministic mnemonic bound to this TEE instance only
+- **EigenAI inference** — Deterministic, verifiable LLM output (OpenAI-compatible API)
+- **EIP-712 signing** — Verdicts signed by TEE-bound key, verifiable on-chain
+- **Zero trust** — No one (including the operator) can tamper with judge execution
 
-Integration scaffold lives in `agent/judge/src/lib/eigencompute.ts`.
+Dashboard: https://verify-sepolia.eigencloud.xyz/app/0x865104D466143234Cc503E9025CBe54a9131a51A
 
 ## Repo Structure
 
