@@ -1,67 +1,260 @@
-import { ethers } from "ethers";
-import axios from "axios";
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  parseAbiItem,
+  type Hex,
+  type Address,
+  formatUnits,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { baseSepolia } from "viem/chains";
 import * as dotenv from "dotenv";
 
-dotenv.config();
+dotenv.config({ path: "../.env" });
 
-const REGISTRY_ADDRESS = process.env.VERDICT_REGISTRY_ADDRESS!;
-const ESCROW_ADDRESS = process.env.POV_ESCROW_ADDRESS!;
-const JUDGE_URL = process.env.JUDGE_AGENT_URL || "http://localhost:3001/entrypoints/judgeDebate/invoke";
+// ── Config ──────────────────────────────────────────────────────────────────
+
 const RPC_URL = process.env.BASE_SEPOLIA_RPC!;
-const PRIVATE_KEY = process.env.PRIVATE_KEY!;
+const PRIVATE_KEY = process.env.PRIVATE_KEY! as Hex;
+const REGISTRY_ADDRESS = (process.env.VERDICT_REGISTRY_ADDRESS ??
+  "0xf68dDB6c1A075F29A5b89eb0a24728652f4Ab962") as Address;
+const ESCROW_ADDRESS = (process.env.POV_ESCROW_ADDRESS ??
+  "0xEd0cdbfD19b8e3e1f0E6BB95e047731EbC8a4B82") as Address;
+const JUDGE_URL =
+  process.env.JUDGE_URL ?? "http://35.233.167.89:3001/judge";
+const JUDGE_TIMEOUT_MS = 120_000;
 
 if (!RPC_URL || !PRIVATE_KEY) {
-  console.error("Missing RPC_URL or PRIVATE_KEY");
+  console.error("Missing BASE_SEPOLIA_RPC or PRIVATE_KEY in .env");
   process.exit(1);
 }
 
-const registryAbi = [
-  "event VerdictRegistered(bytes32 indexed disputeId, address indexed winner, uint256 confidenceBps, uint256 issuedAt, uint256 deadline, uint256 nonce, bytes32 digest)",
-];
+// ── ABIs ────────────────────────────────────────────────────────────────────
 
 const escrowAbi = [
-  "event EscrowOpened(bytes32 indexed disputeId, address indexed payer, address indexed payee, address token, uint256 amount, uint64 timeout)",
-  "function settle(bytes32 disputeId) external",
-];
+  {
+    type: "event",
+    name: "EscrowOpened",
+    inputs: [
+      { name: "disputeId", type: "bytes32", indexed: true },
+      { name: "payer", type: "address", indexed: true },
+      { name: "payee", type: "address", indexed: true },
+      { name: "token", type: "address", indexed: false },
+      { name: "amount", type: "uint256", indexed: false },
+      { name: "timeout", type: "uint64", indexed: false },
+    ],
+  },
+  {
+    type: "function",
+    name: "settle",
+    inputs: [{ name: "disputeId", type: "bytes32" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+] as const;
+
+const registryAbi = [
+  {
+    type: "function",
+    name: "registerVerdict",
+    inputs: [
+      {
+        name: "verdict",
+        type: "tuple",
+        components: [
+          { name: "disputeId", type: "bytes32" },
+          { name: "winner", type: "address" },
+          { name: "confidenceBps", type: "uint256" },
+          { name: "issuedAt", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+        ],
+      },
+      { name: "signature", type: "bytes" },
+    ],
+    outputs: [{ name: "", type: "bytes32" }],
+    stateMutability: "nonpayable",
+  },
+] as const;
+
+// ── Types ───────────────────────────────────────────────────────────────────
+
+interface TeeJudgeRequest {
+  topic: string;
+  debaterA: { id: string; argument: string };
+  debaterB: { id: string; argument: string };
+  disputeId: string;
+  winnerAddress: string;
+}
+
+interface TeeJudgeResponse {
+  verdict: {
+    winner: string;
+    confidenceBps: number;
+    reasoning: string;
+    scores: Record<string, unknown>;
+  };
+  transcriptHash: Hex;
+  signedVerdict: {
+    payload: {
+      disputeId: Hex;
+      winner: Address;
+      confidenceBps: string;
+      issuedAt: string;
+      deadline: string;
+      nonce: string;
+    };
+    digest: Hex;
+    signature: Hex;
+    signer: Address;
+  };
+  eigenaiModel: string;
+  issuedAt: string;
+}
+
+// ── Clients ─────────────────────────────────────────────────────────────────
+
+const account = privateKeyToAccount(PRIVATE_KEY);
+
+const publicClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(RPC_URL),
+});
+
+const walletClient = createWalletClient({
+  account,
+  chain: baseSepolia,
+  transport: http(RPC_URL),
+});
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+async function requestVerdict(
+  disputeId: Hex,
+  payer: Address,
+  payee: Address,
+): Promise<TeeJudgeResponse> {
+  const body: TeeJudgeRequest = {
+    topic: `Dispute ${disputeId}`,
+    debaterA: { id: payer, argument: "Challenger position" },
+    debaterB: { id: payee, argument: "Defender position" },
+    disputeId,
+    winnerAddress: payer,
+  };
+
+  const res = await fetch(JUDGE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`TEE Judge returned ${res.status}: ${text}`);
+  }
+
+  return res.json() as Promise<TeeJudgeResponse>;
+}
+
+async function registerVerdict(judge: TeeJudgeResponse): Promise<Hex> {
+  const { payload, signature } = judge.signedVerdict;
+
+  const { request } = await publicClient.simulateContract({
+    address: REGISTRY_ADDRESS,
+    abi: registryAbi,
+    functionName: "registerVerdict",
+    args: [
+      {
+        disputeId: payload.disputeId,
+        winner: payload.winner,
+        confidenceBps: BigInt(payload.confidenceBps),
+        issuedAt: BigInt(payload.issuedAt),
+        deadline: BigInt(payload.deadline),
+        nonce: BigInt(payload.nonce),
+      },
+      signature,
+    ],
+    account,
+  });
+
+  const hash = await walletClient.writeContract(request);
+  await publicClient.waitForTransactionReceipt({ hash });
+  return hash;
+}
+
+async function settleEscrow(disputeId: Hex): Promise<Hex> {
+  const { request } = await publicClient.simulateContract({
+    address: ESCROW_ADDRESS,
+    abi: escrowAbi,
+    functionName: "settle",
+    args: [disputeId],
+    account,
+  });
+
+  const hash = await walletClient.writeContract(request);
+  await publicClient.waitForTransactionReceipt({ hash });
+  return hash;
+}
+
+// ── Main ────────────────────────────────────────────────────────────────────
 
 async function main() {
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
-  const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+  console.log("[PoV Listener] Watching for EscrowOpened events…");
+  console.log(`  Registry : ${REGISTRY_ADDRESS}`);
+  console.log(`  Escrow   : ${ESCROW_ADDRESS}`);
+  console.log(`  Judge    : ${JUDGE_URL}`);
+  console.log(`  Operator : ${account.address}`);
 
-  const escrow = new ethers.Contract(ESCROW_ADDRESS, escrowAbi, wallet);
-
-  console.log("[PoV Listener] Listening for EscrowOpened events...");
-  console.log(`  Registry: ${REGISTRY_ADDRESS}`);
-  console.log(`  Escrow:   ${ESCROW_ADDRESS}`);
-
-  escrow.on("EscrowOpened", async (disputeId, payer, payee, token, amount) => {
-    console.log(`\n[PoV Listener] New escrow opened!`);
-    console.log(`  Dispute: ${disputeId}`);
-    console.log(`  Payer: ${payer} vs Payee: ${payee}`);
-    console.log(`  Amount: ${ethers.formatUnits(amount, 18)} tokens`);
-
-    try {
-      console.log("[PoV Listener] Requesting verdict from Judge...");
-      const judgeResponse = await axios.post(JUDGE_URL, {
-        input: {
-          topic: `Dispute ${disputeId}`,
-          debaterA: { id: payer, argument: "Challenger argument" },
-          debaterB: { id: payee, argument: "Defender argument" },
-          debateId: disputeId,
-        },
-      });
-
-      const { verdict } = judgeResponse.data.output;
-      console.log(`[PoV Listener] Verdict: ${verdict.winner} (${verdict.confidenceBps} bps)`);
-
-      console.log("[PoV Listener] Settling escrow...");
-      const tx = await escrow.settle(disputeId);
-      await tx.wait();
-      console.log(`[PoV Listener] Settled! TX: ${tx.hash}`);
-    } catch (error) {
-      console.error("[PoV Listener] Error:", error);
-    }
+  publicClient.watchContractEvent({
+    address: ESCROW_ADDRESS,
+    abi: escrowAbi,
+    eventName: "EscrowOpened",
+    onLogs: (logs) => {
+      for (const log of logs) {
+        handleEscrowOpened(log).catch((err) =>
+          console.error("[PoV Listener] Error handling event:", err),
+        );
+      }
+    },
   });
 }
 
-main().catch(console.error);
+async function handleEscrowOpened(log: any) {
+  const { disputeId, payer, payee, token, amount, timeout } = log.args;
+
+  console.log(`\n[PoV Listener] EscrowOpened`);
+  console.log(`  Dispute : ${disputeId}`);
+  console.log(`  Payer   : ${payer}`);
+  console.log(`  Payee   : ${payee}`);
+  console.log(`  Token   : ${token}`);
+  console.log(`  Amount  : ${formatUnits(amount, 18)}`);
+  console.log(`  Timeout : ${timeout}s`);
+
+  // Step 1 – get signed verdict from TEE Judge
+  console.log("[PoV Listener] Requesting verdict from TEE Judge…");
+  const judgeResult = await requestVerdict(disputeId, payer, payee);
+
+  const sv = judgeResult.signedVerdict;
+  console.log(`[PoV Listener] Verdict received`);
+  console.log(`  Winner        : ${sv.payload.winner}`);
+  console.log(`  Confidence    : ${sv.payload.confidenceBps} bps`);
+  console.log(`  Signer (TEE)  : ${sv.signer}`);
+
+  // Step 2 – register verdict on-chain
+  console.log("[PoV Listener] Registering verdict on VerdictRegistry…");
+  const regTx = await registerVerdict(judgeResult);
+  console.log(`  TX: ${regTx}`);
+
+  // Step 3 – settle the escrow
+  console.log("[PoV Listener] Settling escrow…");
+  const settleTx = await settleEscrow(disputeId);
+  console.log(`  TX: ${settleTx}`);
+
+  console.log("[PoV Listener] Done ✓");
+}
+
+main().catch((err) => {
+  console.error("[PoV Listener] Fatal:", err);
+  process.exit(1);
+});

@@ -110,5 +110,21 @@ Respond ONLY with valid JSON, no markdown:
     }
   }
 
-  return { verdict, transcriptHash, signedVerdict, eigenaiModel: MODEL, issuedAt };
+  const serializable = signedVerdict
+    ? {
+        payload: {
+          disputeId: signedVerdict.payload.disputeId,
+          winner: signedVerdict.payload.winner,
+          confidenceBps: signedVerdict.payload.confidenceBps.toString(),
+          issuedAt: signedVerdict.payload.issuedAt.toString(),
+          deadline: signedVerdict.payload.deadline.toString(),
+          nonce: signedVerdict.payload.nonce.toString(),
+        },
+        digest: signedVerdict.digest,
+        signature: signedVerdict.signature,
+        signer: signedVerdict.signer,
+      }
+    : null;
+
+  return { verdict, transcriptHash, signedVerdict: serializable as any, eigenaiModel: MODEL, issuedAt };
 }
