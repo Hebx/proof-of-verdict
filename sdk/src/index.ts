@@ -28,7 +28,6 @@ export interface SubmitArgumentResult {
   ok: boolean;
   disputeId?: string;
   debaterId?: string;
-  error?: string;
 }
 
 async function fetchWithRetry(
@@ -38,10 +37,10 @@ async function fetchWithRetry(
 ): Promise<Response> {
   const timeoutMs = opts.timeoutMs ?? 30_000;
   const retries = opts.retries ?? 0;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let lastErr: unknown;
   for (let i = 0; i <= retries; i++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch(url, { ...init, signal: controller.signal });
       clearTimeout(timeout);
@@ -51,11 +50,9 @@ async function fetchWithRetry(
       }
       return res;
     } catch (e) {
+      clearTimeout(timeout);
       lastErr = e;
-      if (i === retries) {
-        clearTimeout(timeout);
-        throw lastErr;
-      }
+      if (i === retries) throw lastErr;
     }
   }
   throw lastErr;
@@ -76,8 +73,13 @@ export async function discoverJudge(options: {
     const agent = await sdk.getAgent(`${chainId}:961`);
     const url = agent?.web ?? agent?.mcp;
     if (url) return url.replace(/\/$/, "");
-  } catch {
-    /* discovery failed */
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Cannot find module") || msg.includes("agent0-sdk"))
+      throw new ProofOfVerdictError(
+        "agent0-sdk not installed; run npm install agent0-sdk or use fallbackUrl",
+        "DISCOVERY_FAILED",
+      );
   }
   if (options.fallbackUrl) return options.fallbackUrl;
   throw new ProofOfVerdictError(

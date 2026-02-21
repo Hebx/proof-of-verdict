@@ -32,11 +32,15 @@ async function main() {
     "CON: Centralized AI has better accountability and audit trails.",
   );
   console.log("Polling until ready...");
-  while (true) {
-    const status = await agent.getDisputeStatus(DISPUTE_ID);
+  const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 min
+  const start = Date.now();
+  let status;
+  while (Date.now() - start < POLL_TIMEOUT_MS) {
+    status = await agent.getDisputeStatus(DISPUTE_ID);
     if (status.ready) break;
     await new Promise((r) => setTimeout(r, 2000));
   }
+  if (!status?.ready) throw new Error("Polling timed out; dispute not ready");
   const verdict = await agent.requestVerdict(DISPUTE_ID);
   console.log("Verdict:", JSON.stringify(verdict, null, 2));
 }
