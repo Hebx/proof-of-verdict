@@ -63,8 +63,10 @@ paths:
               required: [topic, debaterA, debaterB, disputeId]
               properties:
                 topic: { type: string }
-                debaterA: { type: object }
-                debaterB: { type: object }
+                debaterA:
+                  $ref: "#/components/schemas/Debater"
+                debaterB:
+                  $ref: "#/components/schemas/Debater"
                 disputeId: { type: string }
                 winnerAddress: { type: string }
       responses:
@@ -160,9 +162,14 @@ paths:
                 properties:
                   disputeId: { type: string }
                   topic: { type: string }
-                  debaterA: { type: object }
-                  debaterB: { type: object }
+                  debaterA: { $ref: "#/components/schemas/DebaterSummary" }
+                  debaterB: { $ref: "#/components/schemas/DebaterSummary" }
                   ready: { type: boolean }
+        "404":
+          description: Dispute not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "500":
           content:
             application/json:
@@ -198,3 +205,14 @@ components:
       type: object
       properties:
         error: { type: string }
+    Debater:
+      type: object
+      required: [id, argument]
+      properties:
+        id: { type: string, description: "Address (payer or payee)" }
+        argument: { type: string }
+    DebaterSummary:
+      type: object
+      properties:
+        id: { type: string }
+        argumentLength: { type: number }
