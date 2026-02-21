@@ -82,6 +82,29 @@ When both arguments are in, the listener (in agent mode) polls `GET /dispute/{di
 
 ---
 
+## Discovering the Judge
+
+Discover the Judge via Agent0 (ERC-8004):
+
+```ts
+import { discoverJudge, createProofOfVerdictAgent } from "proof-of-verdict/sdk";
+
+const judgeUrl = await discoverJudge({
+  chainId: 84532,
+  rpcUrl: process.env.BASE_SEPOLIA_RPC,
+  fallbackUrl: process.env.JUDGE_URL,
+});
+
+const agent = await createProofOfVerdictAgent({
+  rpcUrl: process.env.BASE_SEPOLIA_RPC,
+  judgeUrl,
+});
+```
+
+Agent ID (Base Sepolia): `84532:961`. See [Agent0 SDK](https://sdk.ag0.xyz/docs).
+
+---
+
 ## SDK Usage
 
 See `sdk/` for the ProofOfVerdict Agent SDK:

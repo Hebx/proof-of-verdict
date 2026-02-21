@@ -10,6 +10,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "agent0-sdk": "^1.5.3",
     "viem": "^2.23.0"
   },
   "devDependencies": {
