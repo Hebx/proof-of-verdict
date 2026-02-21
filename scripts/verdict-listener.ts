@@ -22,8 +22,10 @@ const REGISTRY_ADDRESS = (process.env.VERDICT_REGISTRY_ADDRESS ??
 const ESCROW_ADDRESS = (process.env.POV_ESCROW_ADDRESS ??
   "0xEd0cdbfD19b8e3e1f0E6BB95e047731EbC8a4B82") as Address;
 const JUDGE_URL =
-  process.env.JUDGE_URL ?? "http://35.233.167.89:3001/judge";
+  process.env.JUDGE_URL ?? "http://35.233.167.89:3001";
 const JUDGE_TIMEOUT_MS = 120_000;
+const DEBATE_TOPIC =
+  process.env.DEBATE_TOPIC ?? "Is decentralized AI more trustworthy than centralized AI?";
 
 if (!RPC_URL || !PRIVATE_KEY) {
   console.error("Missing BASE_SEPOLIA_RPC or PRIVATE_KEY in .env");
@@ -130,20 +132,44 @@ const walletClient = createWalletClient({
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+async function generateArgument(
+  side: "pro" | "con",
+  context?: string,
+): Promise<string> {
+  const res = await fetch(`${JUDGE_URL}/generateArgument`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ topic: DEBATE_TOPIC, side, context }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`generateArgument ${side} failed: ${res.status} ${text}`);
+  }
+  const data = (await res.json()) as { argument: string };
+  return data.argument;
+}
+
 async function requestVerdict(
   disputeId: Hex,
   payer: Address,
   payee: Address,
 ): Promise<TeeJudgeResponse> {
+  // Step 0: Get live debate arguments from both agents
+  console.log("[PoV Listener] Agent A (payer) generating PRO argument…");
+  const argA = await generateArgument("pro", `Payer ${payer} argues for.`);
+  console.log("[PoV Listener] Agent B (payee) generating CON argument…");
+  const argB = await generateArgument("con", `Payee ${payee} argues against.`);
+  console.log("[PoV Listener] Arguments received, requesting verdict…");
+
   const body: TeeJudgeRequest = {
-    topic: `Dispute ${disputeId}`,
-    debaterA: { id: payer, argument: "Challenger position" },
-    debaterB: { id: payee, argument: "Defender position" },
+    topic: DEBATE_TOPIC,
+    debaterA: { id: payer, argument: argA },
+    debaterB: { id: payee, argument: argB },
     disputeId,
-    winnerAddress: payer,
+    winnerAddress: payer, // Fallback only; judge uses verdict.winner for signing
   };
 
-  const res = await fetch(JUDGE_URL, {
+  const res = await fetch(`${JUDGE_URL}/judge`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -223,10 +249,11 @@ async function main() {
 async function handleEscrowOpened(log: any) {
   const { disputeId, payer, payee, token, amount, timeout } = log.args;
 
-  console.log(`\n[PoV Listener] EscrowOpened`);
+  console.log(`\n[PoV Listener] EscrowOpened — 2 agents will debate live`);
+  console.log(`  Topic   : ${DEBATE_TOPIC}`);
   console.log(`  Dispute : ${disputeId}`);
-  console.log(`  Payer   : ${payer}`);
-  console.log(`  Payee   : ${payee}`);
+  console.log(`  Payer   : ${payer} (Agent A, PRO)`);
+  console.log(`  Payee   : ${payee} (Agent B, CON)`);
   console.log(`  Token   : ${token}`);
   console.log(`  Amount  : ${formatUnits(amount, 18)}`);
   console.log(`  Timeout : ${timeout}s`);
@@ -236,9 +263,11 @@ async function handleEscrowOpened(log: any) {
   const judgeResult = await requestVerdict(disputeId, payer, payee);
 
   const sv = judgeResult.signedVerdict;
+  const v = judgeResult.verdict;
   console.log(`[PoV Listener] Verdict received`);
   console.log(`  Winner        : ${sv.payload.winner}`);
   console.log(`  Confidence    : ${sv.payload.confidenceBps} bps`);
+  console.log(`  Reasoning     : ${v.reasoning}`);
   console.log(`  Signer (TEE)  : ${sv.signer}`);
 
   // Step 2 – register verdict on-chain

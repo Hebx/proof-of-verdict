@@ -16,7 +16,12 @@ function getClient(): OpenAI {
   return _openai;
 }
 
-const MODEL = process.env.EIGENAI_MODEL || "gpt-oss-120b-f16";
+// EigenAI: deepseek-v3.1 (best), gpt-oss-120b | OpenAI: gpt-4o
+const MODEL =
+  process.env.EIGENAI_MODEL ||
+  (process.env.EIGENAI_BASE_URL?.includes("openai.com")
+    ? "gpt-4o"
+    : "deepseek-v3.1");
 
 interface DebateInput {
   topic: string;
@@ -93,12 +98,18 @@ Respond ONLY with valid JSON, no markdown:
 
   let signedVerdict: SignedVerdict | null = null;
 
-  if (input.disputeId && input.winnerAddress) {
+  // Use judge's verdict winner (not caller-provided) for signing — must be payer or payee
+  const a = (input.debaterA.id as string).toLowerCase();
+  const b = (input.debaterB.id as string).toLowerCase();
+  const w = String(verdict.winner || "").toLowerCase();
+  const winnerAddr =
+    w === a ? input.debaterA.id : w === b ? input.debaterB.id : input.winnerAddress;
+  if (input.disputeId && winnerAddr) {
     try {
       const now = Math.floor(Date.now() / 1000);
       signedVerdict = await signVerdict({
         disputeId: input.disputeId as Hex,
-        winner: input.winnerAddress as Hex,
+        winner: winnerAddr as Hex,
         confidenceBps: BigInt(verdict.confidenceBps),
         issuedAt: BigInt(now),
         deadline: BigInt(now + 86400),
@@ -127,4 +138,29 @@ Respond ONLY with valid JSON, no markdown:
     : null;
 
   return { verdict, transcriptHash, signedVerdict: serializable as any, eigenaiModel: MODEL, issuedAt };
+}
+
+/** Generate a debate argument for a topic (pro or con). Used by listener for live debates. */
+export async function generateArgument(
+  topic: string,
+  side: "pro" | "con",
+  context?: string,
+): Promise<{ argument: string }> {
+  const prompt = `You are a world-class debater.
+Topic: "${topic}"
+Side: ${side.toUpperCase()}
+${context ? `Context: ${context}` : ""}
+
+Generate a persuasive, logical, evidence-based argument for your side. Keep it under 500 characters.`;
+
+  const response = await getClient().chat.completions.create({
+    model: MODEL,
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.7,
+    max_tokens: 300,
+  });
+
+  const argument =
+    response.choices[0]?.message?.content || `No argument for ${side} at this time.`;
+  return { argument: argument.trim() };
 }

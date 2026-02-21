@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "listener": "tsx verdict-listener.ts"
+    "listener": "tsx verdict-listener.ts",
+    "open-escrow": "tsx open-escrow.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

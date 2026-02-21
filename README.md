@@ -99,14 +99,15 @@ curl -X POST http://35.233.167.89:3001/judge \
 
 Returns a signed verdict with `payload`, `digest`, `signature`, and `signer` fields ready for `VerdictRegistry.registerVerdict()`.
 
-## Verdict Listener
+## Verdict Listener (2-Agent Live Debate)
 
-The listener (`scripts/verdict-listener.ts`) automates the full pipeline:
+The listener (`scripts/verdict-listener.ts`) automates the full pipeline with **live 2-agent debate**:
 
 1. Watches `EscrowOpened` events on `PovEscrowERC20`
-2. Calls the TEE Judge for a signed verdict
-3. Registers the verdict on `VerdictRegistry`
-4. Settles the escrow on `PovEscrowERC20`
+2. **Agent A (payer)** generates PRO argument via `/generateArgument`
+3. **Agent B (payee)** generates CON argument via `/generateArgument`
+4. TEE Judge evaluates both, returns signed verdict
+5. Registers verdict on `VerdictRegistry`, settles escrow
 
 ```bash
 cd scripts && npm install && npm run listener
@@ -119,6 +120,14 @@ cd scripts && npm install && npm run listener
 cd contracts
 forge script script/DeployPoV.s.sol:DeployPoV \
   --rpc-url $BASE_SEPOLIA_RPC --broadcast
+```
+
+### Deploy MockERC20 (for testing settlement)
+```bash
+cd contracts
+forge script script/DeployMockERC20.s.sol:DeployMockERC20 \
+  --rpc-url $BASE_SEPOLIA_RPC --broadcast
+# Set POV_TOKEN_ADDRESS in .env from output
 ```
 
 ### Update Signer to TEE Wallet
@@ -138,6 +147,27 @@ cd agent/judge && npm install && npm run dev
 ```bash
 cd scripts && npm install && npm run listener
 ```
+
+### End-to-End: Live 2-Agent Debate + Settlement
+```bash
+# One command: deploy token, start listener, open escrow
+./scripts/e2e-live.sh
+```
+Requires `.env` with `BASE_SEPOLIA_RPC`, `PRIVATE_KEY`, `PAYEE_ADDRESS` (default: TEE wallet).
+
+Or manually:
+1. Deploy MockERC20, set `POV_TOKEN_ADDRESS` and `PAYEE_ADDRESS` in `.env`
+2. Start listener: `cd scripts && npm run listener`
+3. In another terminal: `cd scripts && npm run open-escrow`
+4. Listener runs 2-agent debate → Judge verdict → settle
+
+### Redeploy TEE Judge (EigenCompute)
+```bash
+# 1. Create agent/judge/.env.tee from .env.tee.example, add EIGENAI_API_KEY
+# 2. Build, push, deploy
+ECLOUD_PRIVATE_KEY=0x... ./scripts/deploy-tee.sh
+```
+Uses `deepseek-v3.1` (best EigenAI model; gpt-5.2 is OpenAI-only).
 
 ## Repo Structure
 

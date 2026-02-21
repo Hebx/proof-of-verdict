@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { judgeDebate } from "./lib/judge";
+import { judgeDebate, generateArgument } from "./lib/judge";
 import { getWalletAddress } from "./lib/tee-wallet";
 
 dotenv.config();
@@ -35,6 +35,21 @@ app.post("/judge", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("[Judge] Error:", err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.post("/generateArgument", async (req, res) => {
+  try {
+    const { topic, side, context } = req.body;
+    if (!topic || !side) {
+      res.status(400).json({ error: "topic and side required" });
+      return;
+    }
+    const result = await generateArgument(topic, side, context);
+    res.json(result);
+  } catch (err) {
+    console.error("[Judge] generateArgument Error:", err);
     res.status(500).json({ error: String(err) });
   }
 });
