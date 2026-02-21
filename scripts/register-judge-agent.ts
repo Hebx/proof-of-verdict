@@ -57,7 +57,7 @@ async function main() {
     undefined, // Optional: add image URL for agent avatar
   );
 
-  // MCP endpoint = Judge base URL (tools: /judge, /generateArgument)
+  // MCP endpoint = Judge base URL (TEE uses REST only; MCP disabled — clients use this URL for REST)
   await agent.setMCP(JUDGE_URL.replace(/\/$/, "") + "/", undefined, false);
 
   // Trust: TEE attestation (EigenCompute), reputation, no crypto-economic stake for now
@@ -67,7 +67,7 @@ async function main() {
     version: "0.1.0",
     category: "debate-judge",
     eigenComputeAppId: "0x865104D466143234Cc503E9025CBe54a9131a51A",
-    capabilities: ["judge", "generateArgument"],
+    capabilities: ["judge", "generateArgument", "submitArgument", "judgeFromDispute"],
   });
 
   agent.setActive(true);
