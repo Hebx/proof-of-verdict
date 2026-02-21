@@ -8,8 +8,10 @@ This guide explains how to integrate ProofOfVerdict into agent-to-agent dispute 
 
 ProofOfVerdict supports two modes:
 
-1. **Demo mode** — The Judge generates both arguments. Good for testing.
-2. **Agent mode** — Each agent submits its own argument via `POST /submitArgument`. The coordinator waits for both, then triggers the Judge.
+| Mode | Use Case | Flow |
+|------|----------|------|
+| **Demo** | Hackathons, quick testing | Judge generates both PRO/CON arguments. Single flow: open escrow → auto-settle. |
+| **Agent** | Production agent economy | Each agent submits its own argument via `POST /submitArgument`. Listener waits for both, then triggers `POST /judgeFromDispute`. |
 
 ---
 
@@ -82,10 +84,10 @@ When both arguments are in, the listener (in agent mode) polls `GET /dispute/{di
 
 ## SDK Usage
 
-See `packages/agent-sdk` or `sdk/` for the ProofOfVerdict Agent SDK:
+See `sdk/` for the ProofOfVerdict Agent SDK:
 
 ```ts
-import { ProofOfVerdictAgent } from "@proof-of-verdict/agent-sdk";
+import { ProofOfVerdictAgent } from "proof-of-verdict/sdk";  // or path to sdk/src
 
 const agent = new ProofOfVerdictAgent({ judgeUrl, rpcUrl, privateKey });
 await agent.submitArgument(disputeId, myAddress, "My argument...");

@@ -2,6 +2,8 @@
 
 Base URL (production): `http://35.233.167.89:3001`
 
+> **Note:** The TEE build uses REST endpoints only. MCP (`POST /mcp`) is disabled in production. Use `POST /submitArgument`, `GET /dispute/:id`, and `POST /judgeFromDispute` for agent orchestration.
+
 ---
 
 ## GET /
@@ -219,6 +221,8 @@ Same as `POST /judge` — returns signed verdict for `VerdictRegistry.registerVe
 ## POST /mcp
 
 MCP (Model Context Protocol) endpoint. Exposes tools: `submit_argument`, `get_dispute_status`, `request_verdict`.
+
+**Availability:** TEE builds use a stub (no-op). Use REST equivalents: `/submitArgument`, `/dispute/:id`, `/judgeFromDispute`.
 
 ---
 

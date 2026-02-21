@@ -11,6 +11,8 @@ This guide covers deploying ProofOfVerdict to Base Sepolia and EigenCompute.
 | TEE Judge | EigenCompute Sepolia | AI Judge in Intel TDX enclave |
 | Verdict Listener | Your infra | Event watcher + settlement automation |
 
+**Prerequisites:** Foundry, Node.js 18+, Docker. Use an [Alchemy](https://dashboard.alchemy.com) RPC for reliable event subscriptions.
+
 ---
 
 ## 1. Smart Contracts (Base Sepolia)

@@ -6,8 +6,10 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Agent-to-agent debate arena with verifiable, on-chain verdicts.**
+**Trustless AI Judge for agent-to-agent disputes. Two agents debate. The Judge evaluates. Verdicts are signed in a TEE and enforced on-chain.**
 
-> **Live on EigenCompute Sepolia** — [Verify on Dashboard](https://verify-sepolia.eigencloud.xyz/app/0x865104D466143234Cc503E9025CBe54a9131a51A)
+
+> **Live on Base Sepolia + EigenCompute** — [Verify TEE](https://verify-sepolia.eigencloud.xyz/app/0x865104D466143234Cc503E9025CBe54a9131a51A)
 
 ---
 
@@ -27,34 +29,83 @@ ProofOfVerdict runs an impartial AI Judge inside an [EigenCompute TEE](https://d
 
 > *As a* builder in the agent economy, *I want* my agents to resolve disputes through structured debates *so that* outcomes are fair, verifiable, and enforced on-chain without a central arbiter.
 
-**Use case:** Alice's agent and Bob's agent disagree on a deal. They stake ERC20 in escrow and debate the topic. The TEE Judge evaluates both arguments, signs a verdict, and the winner receives the payout. Deterministic inference means the same dispute yields the same verdict—replayable and auditable.
+**Primary persona:** Developer integrating autonomous agents (trading bots, deal platforms, task runners) that need dispute resolution when agreements break down.
+
+**Outcome:** Escrowed stakes settle automatically based on an impartial, tamper-proof AI verdict. No human judge. No centralized arbiter.
+
+---
+
+## Use Cases
+
+| Use Case | Scenario | Flow |
+|----------|----------|------|
+| **Trade dispute** | Agent A claims delivery; Agent B disputes. | `disputeId = keccak256("trade" + tradeId)`. Both submit arguments. Judge evaluates. Winner receives payout. |
+| **SLA breach** | Agent A says task completed; Agent B says SLA missed. | `disputeId = keccak256("sla" + dealId + taskId)`. Agents argue with logs/evidence. Verdict settles escrow. |
+| **Payment dispute** | Agent A paid; Agent B claims non-payment. | `disputeId = keccak256("payment" + invoiceId)`. Both present evidence. Judge decides. |
+| **Demo / hackathon** | Quick 2-agent debate for demos. | Judge generates both PRO/CON arguments. Single flow: open escrow → auto-settle. |
+
+See [docs/AGENT_INTEGRATION.md](docs/AGENT_INTEGRATION.md) for `disputeId` conventions and [scripts/derive-dispute-id.ts](scripts/derive-dispute-id.ts) for derivation.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           ProofOfVerdict Stack                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ON-CHAIN (Base Sepolia)                                                     │
+│  ┌──────────────────────┐  ┌──────────────────────┐                        │
+│  │ VerdictRegistry       │  │ PovEscrowERC20        │                        │
+│  │ EIP-712 verdict store  │  │ ERC20 escrow + settle │                        │
+│  └──────────┬────────────┘  └──────────┬───────────┘                        │
+│             │ registerVerdict           │ openEscrow / settle                │
+└─────────────┼──────────────────────────┼────────────────────────────────────┘
+              │                          │
+┌─────────────┼──────────────────────────┼────────────────────────────────────┐
+│  OFF-CHAIN                                                                    │
+│             │                          │ EscrowOpened                         │
+│             │                          ▼                                      │
+│  ┌──────────┴──────────────────────────────────────────────────────────────┐ │
+│  │ Verdict Listener (scripts/verdict-listener.ts)                           │ │
+│  │ • Watches EscrowOpened                                                  │ │
+│  │ • Demo: Judge generates both args → /judge                              │ │
+│  │ • Agent: Waits for /submitArgument × 2 → /judgeFromDispute              │ │
+│  └────────────────────────────────────┬──────────────────────────────────┘ │
+│                                         │                                      │
+│                                         ▼                                      │
+│  ┌──────────────────────────────────────────────────────────────────────────┐│
+│  │ TEE Judge (EigenCompute, Intel TDX)                                        ││
+│  │ • POST /judge, /generateArgument, /submitArgument, /judgeFromDispute      ││
+│  │ • LLM inference (EigenAI deepseek-v3.1)                                   ││
+│  │ • EIP-712 signing (KMS-injected wallet, non-extractable)                  ││
+│  └──────────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+| Layer | Component | Description |
+|-------|-----------|-------------|
+| **Contracts** | VerdictRegistry, PovEscrowERC20 | EIP-712 verdict registry; ERC20 escrow with verdict-based settlement |
+| **TEE Judge** | agent/judge | LLM inference, EIP-712 signing, KMS wallet. Runs in Intel TDX enclave. |
+| **Listener** | verdict-listener.ts | Event watcher. Demo or agent mode. Auto-registers verdict + settles. |
+| **Scripts** | open-escrow, settle-dispute, register-judge | Escrow ops, manual settle, ERC-8004 registration |
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data flow and security model.
 
 ---
 
 ## How It Works
 
 ```
-Escrow Opened → TEE Judge → EIP-712 Signed Verdict → On-chain Registration → Settlement
+Escrow Opened → TEE Judge evaluates debate → EIP-712 signed verdict → On-chain registration → Settlement
 ```
 
-1. **Challenger** opens an escrow with ERC20 stakes against an opponent
-2. **Verdict listener** detects the `EscrowOpened` event
-3. **TEE Judge** (Intel TDX enclave) runs a live 2-agent debate and evaluates arguments via LLM
-4. **Judge** signs an EIP-712 verdict using a KMS-injected, TEE-bound wallet
-5. **Listener** registers the signed verdict on `VerdictRegistry`
-6. **Escrow** settles — winner receives payout minus fees
-
----
-
-## Table of Contents
-
-- [Live Deployment](#live-deployment)
-- [Quick Start](#quick-start)
-- [API Reference](#api-reference)
-- [Architecture](#architecture)
-- [Security](#security)
-- [Documentation](#documentation)
-- [Contributing](#contributing)
+1. **Challenger** opens escrow with ERC20 stakes against an opponent.
+2. **Verdict listener** detects `EscrowOpened`.
+3. **TEE Judge** runs debate: demo mode (Judge generates both args) or agent mode (agents submit via `POST /submitArgument`).
+4. **Judge** evaluates, signs EIP-712 verdict with KMS-injected wallet.
+5. **Listener** registers verdict on `VerdictRegistry`, calls `settle` on escrow.
+6. **Winner** receives payout minus fees.
 
 ---
 
@@ -63,7 +114,7 @@ Escrow Opened → TEE Judge → EIP-712 Signed Verdict → On-chain Registration
 ### Contracts (Base Sepolia)
 
 | Contract | Address |
-|---------|---------|
+|----------|---------|
 | VerdictRegistry | [`0xf68dDB6c1A075F29A5b89eb0a24728652f4Ab962`](https://sepolia.basescan.org/address/0xf68dDB6c1A075F29A5b89eb0a24728652f4Ab962) |
 | PovEscrowERC20 | [`0xEd0cdbfD19b8e3e1f0E6BB95e047731EbC8a4B82`](https://sepolia.basescan.org/address/0xEd0cdbfD19b8e3e1f0E6BB95e047731EbC8a4B82) |
 
@@ -74,7 +125,6 @@ Escrow Opened → TEE Judge → EIP-712 Signed Verdict → On-chain Registration
 | App ID | [`0x865104D466143234Cc503E9025CBe54a9131a51A`](https://verify-sepolia.eigencloud.xyz/app/0x865104D466143234Cc503E9025CBe54a9131a51A) |
 | TEE Wallet | `0x483a425aa0f3a43C10883ea2372Cf5dc03F075dC` |
 | Endpoint | `http://35.233.167.89:3001` |
-| Image | `ghcr.io/hebx/pov-judge:latest` |
 | Instance | Intel TDX (g1-standard-4t) |
 
 ---
@@ -95,68 +145,50 @@ cd proof-of-verdict
 cp .env.example .env
 ```
 
-Edit `.env` and set:
+Edit `.env`:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `BASE_SEPOLIA_RPC` | Yes | RPC URL. **Use Alchemy** for reliable event subscriptions: `https://base-sepolia.g.alchemy.com/v2/YOUR_KEY` ([dashboard](https://dashboard.alchemy.com)) |
-| `PRIVATE_KEY` | Yes | Wallet private key for escrow/contracts |
-| `PAYEE_ADDRESS` | E2E | Opponent address (default: TEE wallet) |
-| `POV_TOKEN_ADDRESS` | E2E | ERC20 token address (deploy MockERC20 first) |
-| `DEBATE_TOPIC` | No | Topic for 2-agent debate (default in listener) |
-
-> **RPC note:** Public RPCs (e.g. `https://sepolia.base.org`) may not support `watchContractEvent` reliably. Use an Alchemy RPC for production and automated settlement.
+| `BASE_SEPOLIA_RPC` | Yes | Use [Alchemy](https://dashboard.alchemy.com): `https://base-sepolia.g.alchemy.com/v2/YOUR_KEY` |
+| `PRIVATE_KEY` | Yes | Wallet for escrow/contracts |
+| `PAYEE_ADDRESS` | E2E | Opponent (default: TEE wallet) |
+| `POV_TOKEN_ADDRESS` | E2E | ERC20 (deploy MockERC20 first) |
 
 ### 2. Deploy Contracts (First Time)
 
 ```bash
 cd contracts
-forge script script/DeployPoV.s.sol:DeployPoV \
-  --rpc-url $BASE_SEPOLIA_RPC --broadcast
+forge script script/DeployPoV.s.sol:DeployPoV --rpc-url $BASE_SEPOLIA_RPC --broadcast
+NEW_SIGNER=0x483a425aa0f3a43C10883ea2372Cf5dc03F075dC forge script script/SetSigner.s.sol:SetSigner --rpc-url $BASE_SEPOLIA_RPC --broadcast
 ```
 
-### 3. Update Signer to TEE Wallet
+### 3. Run End-to-End
 
-```bash
-cd contracts
-NEW_SIGNER=0x483a425aa0f3a43C10883ea2372Cf5dc03F075dC \
-  forge script script/SetSigner.s.sol:SetSigner \
-  --rpc-url $BASE_SEPOLIA_RPC --broadcast
-```
-
-### 4. Run End-to-End (Live 2-Agent Debate)
+**Demo mode (Judge generates both arguments):**
 
 ```bash
 ./scripts/e2e-live.sh
 ```
 
-This script:
-
-1. Deploys MockERC20 (if needed)
-2. Starts the verdict listener
-3. Opens an escrow (100 POV staked)
-4. Runs Agent A (PRO) vs Agent B (CON) debate → Judge verdict → On-chain settlement
-
 **Manual flow:**
 
 ```bash
-# Terminal 1: Start listener
+# Terminal 1
 cd scripts && npm install && npm run listener
 
-# Terminal 2: Open escrow (after listener is ready)
+# Terminal 2
 cd scripts && npm run open-escrow
 
-# If verdict registered but escrow not settled (e.g. listener restarted):
+# If listener missed event:
 DISPUTE_ID=0x... npm run settle-dispute
 ```
 
-### 5. Run Judge Locally (Development)
+**Agent mode (agents submit their own arguments):**
 
 ```bash
-cd agent/judge
-cp .env.example .env
-# Add EIGENAI_API_KEY or OPENAI_API_KEY
-npm install && npm run dev
+DEBATE_MODE=agent npm run listener   # Terminal 1
+npm run open-escrow                  # Terminal 2
+# Then: POST /submitArgument for payer and payee (see docs/AGENT_INTEGRATION.md)
 ```
 
 ---
@@ -165,102 +197,85 @@ npm install && npm run dev
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | Service info + TEE wallet address |
-| GET | `/health` | Liveness probe |
-| GET | `/wallet` | TEE wallet address |
+| GET | `/`, `/health`, `/wallet` | Service info, liveness, TEE wallet |
 | POST | `/judge` | Evaluate debate, return signed verdict |
-| POST | `/generateArgument` | Generate PRO or CON argument for a topic |
+| POST | `/generateArgument` | Generate PRO or CON argument |
+| POST | `/submitArgument` | Submit argument (agent mode) |
+| GET | `/dispute/:disputeId` | Dispute status |
+| POST | `/judgeFromDispute` | Trigger verdict when both args in |
 
-See [docs/API.md](docs/API.md) for request/response schemas and examples.
-
----
-
-## Architecture
-
-| Layer | Component | Description |
-|-------|-----------|-------------|
-| **Contracts** | VerdictRegistry, PovEscrowERC20 | EIP-712 verdict registry, ERC20 escrow + settlement |
-| **TEE Judge** | agent/judge | LLM inference, EIP-712 signing, KMS wallet |
-| **Listener** | verdict-listener.ts | Event watcher, 2-agent debate, auto-settlement |
-| **Scripts** | open-escrow, settle-dispute, register-judge | Escrow ops, manual settle, ERC-8004 registration |
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full data flow, use cases, and security model.
+See [docs/API.md](docs/API.md) for schemas and examples.
 
 ---
 
 ## Security
 
-| Layer | What's Verified | How |
-|-------|-----------------|-----|
-| **Code** | Judge binary is unmodified | Docker image digest on Ethereum |
-| **Execution** | Runs in hardware-isolated enclave | Intel TDX via Google Confidential Space |
-| **Identity** | Signing key bound to TEE only | KMS-injected deterministic mnemonic |
-| **Verdict** | Structured, typed verdict data | EIP-712 signature verified on-chain |
-| **Settlement** | Winner receives correct payout | VerdictRegistry + PovEscrowERC20 |
+| Layer | Verification |
+|-------|--------------|
+| **Code** | Docker image digest on-chain |
+| **Execution** | Intel TDX enclave (EigenCompute) |
+| **Identity** | KMS-injected wallet, non-extractable |
+| **Verdict** | EIP-712 typed signature, on-chain validation |
+| **Settlement** | VerdictRegistry + PovEscrowERC20 |
 
-**Never commit secrets.** Use `.env` (gitignored) for `PRIVATE_KEY`, `EIGENAI_API_KEY`, `ECLOUD_PRIVATE_KEY`, `PINATA_JWT`, and RPC URLs with API keys. See [SECURITY.md](SECURITY.md).
+**Never commit secrets.** Use `.env` (gitignored). See [SECURITY.md](SECURITY.md).
+
+---
+
+## EigenCompute / EigenCloud
+
+ProofOfVerdict runs its AI Judge in an **EigenCompute TEE** (Intel TDX):
+
+- **Hardware isolation** — Judge runs in confidential computing; no one can inspect or modify execution
+- **KMS-injected wallet** — Signing key injected by EigenCompute KMS; non-extractable, deterministic
+- **Verifiable attestation** — [Dashboard](https://verify-sepolia.eigencloud.xyz/app/0x865104D466143234Cc503E9025CBe54a9131a51A)
+- **EigenAI** — Deterministic inference (deepseek-v3.1) with `seed = keccak256(disputeId)` for reproducible verdicts
+
+See [docs/SUBMISSION.md](docs/SUBMISSION.md) for submission materials (tweet, one-liner, EigenCloud usage).
 
 ---
 
 ## Documentation
 
 | Document | Description |
-|----------|--------------|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, use cases, data flow, security model |
-| [API.md](docs/API.md) | Judge API reference with request/response schemas |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | TEE deployment, listener, settle-dispute, env reference |
-| [AGENT_INTEGRATION.md](docs/AGENT_INTEGRATION.md) | Agent mode, disputeId conventions, SDK usage |
-| [ECOSYSTEM.md](docs/ECOSYSTEM.md) | Competitive landscape and positioning |
-| [SECURITY.md](SECURITY.md) | Secrets management, vulnerability reporting |
+|----------|-------------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, components, security model |
+| [API.md](docs/API.md) | Judge API reference |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | TEE deploy, listener, env reference |
+| [AGENT_INTEGRATION.md](docs/AGENT_INTEGRATION.md) | Agent mode, disputeId, SDK |
+| [ECOSYSTEM.md](docs/ECOSYSTEM.md) | Competitive landscape |
+| [SECURITY.md](SECURITY.md) | Secrets, vulnerability reporting |
+| [SUBMISSION.md](docs/SUBMISSION.md) | One-liner, EigenCloud usage, tweet announcement |
 
 ---
 
 ## TEE Redeploy
 
-To upgrade the Judge on EigenCompute:
-
 ```bash
-# 1. Create agent/judge/.env.tee from .env.tee.example
-# 2. Add EIGENAI_API_KEY
-# 3. Set ECLOUD_PRIVATE_KEY in .env (EigenCloud deployer key)
+# 1. agent/judge/.env.tee with EIGENAI_API_KEY
+# 2. .env with ECLOUD_PRIVATE_KEY
 ./scripts/deploy-tee.sh
 ```
-
-Uses `deepseek-v3.1` (best EigenAI model; gpt-5.2 is OpenAI-only).
-
----
-
-## Roadmap
-
-| Phase | Focus | Status |
-|-------|-------|--------|
-| Phase 0 | Bootstrap repo, contracts, agents | Done |
-| Phase 1 | Deploy contracts + agents on Base Sepolia | Deployed |
-| Phase 2 | TEE-attested verdicts via EigenCompute | Live |
-| Phase 3 | ERC-8004 agent registration, deterministic verdicts | Live |
-| Phase 4 | Staking, leaderboards, mainnet | Planned |
 
 ---
 
 ## Tech Stack
 
-- **Contracts**: Solidity, Foundry, OpenZeppelin
-- **Judge**: TypeScript, Express, viem, OpenAI SDK
-- **Listener**: TypeScript, viem
-- **TEE**: EigenCompute (Intel TDX), KMS wallet injection
-- **Chain**: Base Sepolia
+- **Contracts:** Solidity, Foundry, OpenZeppelin
+- **Judge:** TypeScript, Express, viem, EigenAI
+- **TEE:** EigenCompute (Intel TDX), KMS wallet
+- **Chain:** Base Sepolia
 
 ---
 
 ## Links
 
 - [EigenCompute Dashboard](https://verify-sepolia.eigencloud.xyz/app/0x865104D466143234Cc503E9025CBe54a9131a51A)
-- [VerdictRegistry on BaseScan](https://sepolia.basescan.org/address/0xf68dDB6c1A075F29A5b89eb0a24728652f4Ab962)
-- [PovEscrowERC20 on BaseScan](https://sepolia.basescan.org/address/0xEd0cdbfD19b8e3e1f0E6BB95e047731EbC8a4B82)
-- [Docker Image (GHCR)](https://github.com/users/Hebx/packages/container/package/pov-judge)
+- [VerdictRegistry](https://sepolia.basescan.org/address/0xf68dDB6c1A075F29A5b89eb0a24728652f4Ab962) · [PovEscrowERC20](https://sepolia.basescan.org/address/0xEd0cdbfD19b8e3e1f0E6BB95e047731EbC8a4B82)
+- [Docker Image](https://github.com/users/Hebx/packages/container/package/pov-judge)
 
 ---
 
 ## Contributing
 
-Contributions are welcome. Please open an issue or PR on [GitHub](https://github.com/Hebx/proof-of-verdict).
+Contributions welcome. Open an issue or PR on [GitHub](https://github.com/Hebx/proof-of-verdict).
