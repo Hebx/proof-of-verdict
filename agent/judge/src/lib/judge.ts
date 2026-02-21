@@ -43,6 +43,10 @@ interface JudgeResult {
   signedVerdict: SignedVerdict | null;
   eigenaiModel: string;
   issuedAt: string;
+  /** Seed used for deterministic EigenAI inference (replay/audit) */
+  eigenaiSeed?: number;
+  /** EigenAI response signature when available (verifiable inference) */
+  eigenaiSignature?: string;
 }
 
 export async function judgeDebate(input: DebateInput): Promise<JudgeResult> {
@@ -69,16 +73,25 @@ Respond ONLY with valid JSON, no markdown:
   }
 }`;
 
-  console.log(`[Judge] Requesting verdict from EigenAI (${MODEL})...`);
+  // Deterministic inference: same inputs → same verdict (EigenAI trustless agents)
+  // Seed from disputeId when available for replay/audit; fallback to 42
+  const seed = input.disputeId
+    ? Number(BigInt(keccak256(toHex(input.disputeId))) % (2n ** 31n))
+    : 42;
+
+  const judgeStart = Date.now();
+  console.log(`[Judge] LLM judge: requesting verdict (${MODEL}, seed=${seed})...`);
 
   const response = await getClient().chat.completions.create({
     model: MODEL,
     messages: [{ role: "user", content: prompt }],
     temperature: 0,
-  });
+    seed,
+  } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
 
   const raw = response.choices[0]?.message?.content || '{"error": "No verdict"}';
-  console.log(`[Judge] Raw response: ${raw.slice(0, 200)}`);
+  const judgeElapsed = Date.now() - judgeStart;
+  console.log(`[Judge] LLM judge: done in ${judgeElapsed}ms, raw: ${raw.slice(0, 150)}...`);
 
   let verdict;
   try {
@@ -137,7 +150,17 @@ Respond ONLY with valid JSON, no markdown:
       }
     : null;
 
-  return { verdict, transcriptHash, signedVerdict: serializable as any, eigenaiModel: MODEL, issuedAt };
+  const eigenaiSignature = (response as { signature?: string }).signature;
+
+  return {
+    verdict,
+    transcriptHash,
+    signedVerdict: serializable as any,
+    eigenaiModel: MODEL,
+    issuedAt,
+    eigenaiSeed: seed,
+    ...(eigenaiSignature && { eigenaiSignature }),
+  };
 }
 
 /** Generate a debate argument for a topic (pro or con). Used by listener for live debates. */
@@ -146,6 +169,9 @@ export async function generateArgument(
   side: "pro" | "con",
   context?: string,
 ): Promise<{ argument: string }> {
+  const start = Date.now();
+  console.log(`[Judge] LLM generateArgument: ${side.toUpperCase()} (${MODEL}) starting...`);
+
   const prompt = `You are a world-class debater.
 Topic: "${topic}"
 Side: ${side.toUpperCase()}
@@ -162,5 +188,8 @@ Generate a persuasive, logical, evidence-based argument for your side. Keep it u
 
   const argument =
     response.choices[0]?.message?.content || `No argument for ${side} at this time.`;
-  return { argument: argument.trim() };
+  const elapsed = Date.now() - start;
+  const trimmed = argument.trim();
+  console.log(`[Judge] LLM generateArgument: ${side.toUpperCase()} done in ${elapsed}ms (${trimmed.length} chars)`);
+  return { argument: trimmed };
 }

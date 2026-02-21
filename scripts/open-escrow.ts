@@ -25,6 +25,11 @@ const ESCROW_ADDRESS = (process.env.POV_ESCROW_ADDRESS ??
   "0xEd0cdbfD19b8e3e1f0E6BB95e047731EbC8a4B82") as Address;
 const TOKEN_ADDRESS = process.env.POV_TOKEN_ADDRESS! as Address;
 const PAYEE = process.env.PAYEE_ADDRESS! as Address;
+const DEAL_ID = process.env.DEAL_ID;
+const TRADE_ID = process.env.TRADE_ID;
+const TASK_ID = process.env.TASK_ID;
+const INVOICE_ID = process.env.INVOICE_ID;
+const TOPIC = process.env.TOPIC ?? process.env.DEBATE_TOPIC;
 
 const escrowAbi = [
   {
@@ -74,9 +79,23 @@ async function main() {
     transport: http(RPC_URL),
   });
 
-  const disputeId = keccak256(
-    toHex(`pov-dispute-${Date.now()}-${Math.random().toString(36).slice(2)}`),
-  );
+  let disputeId: Hex;
+  if (TRADE_ID) {
+    disputeId = keccak256(toHex(`trade${TRADE_ID}`));
+    console.log("[open-escrow] disputeId from TRADE_ID:", disputeId);
+  } else if (DEAL_ID && TASK_ID) {
+    disputeId = keccak256(toHex(`sla${DEAL_ID}${TASK_ID}`));
+    console.log("[open-escrow] disputeId from DEAL_ID+TASK_ID:", disputeId);
+  } else if (INVOICE_ID) {
+    disputeId = keccak256(toHex(`payment${INVOICE_ID}`));
+    console.log("[open-escrow] disputeId from INVOICE_ID:", disputeId);
+  } else {
+    disputeId = keccak256(
+      toHex(`pov-dispute-${Date.now()}-${Math.random().toString(36).slice(2)}`),
+    );
+    console.log("[open-escrow] disputeId (random):", disputeId);
+  }
+
   const amount = parseUnits("100", 18);
   const timeout = 86400; // 1 day
 
@@ -84,7 +103,7 @@ async function main() {
   console.log("[open-escrow] Payee:", PAYEE);
   console.log("[open-escrow] Token:", TOKEN_ADDRESS);
   console.log("[open-escrow] Amount: 100 POV");
-  console.log("[open-escrow] DisputeId:", disputeId);
+  if (TOPIC) console.log("[open-escrow] Topic:", TOPIC);
 
   // 1. Approve escrow (payer must already have tokens from DeployMockERC20)
   console.log("[open-escrow] Approving escrow…");

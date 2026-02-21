@@ -1,9 +1,14 @@
 node_modules/
 dist/
-.env
-.env.tee
 *.log
 .DS_Store
+
+# Secrets — never commit (see SECURITY.md)
+.env
+.env.tee
+.env.local
+agent/judge/.env
+agent/judge/.env.tee
 
 # Foundry
 contracts/cache/

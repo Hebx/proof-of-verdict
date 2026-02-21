@@ -4,9 +4,13 @@
   "type": "module",
   "scripts": {
     "listener": "tsx verdict-listener.ts",
-    "open-escrow": "tsx open-escrow.ts"
+    "open-escrow": "tsx open-escrow.ts",
+    "register-judge": "tsx register-judge-agent.ts",
+    "settle-dispute": "tsx settle-dispute.ts",
+    "derive-dispute-id": "tsx derive-dispute-id.ts"
   },
   "dependencies": {
+    "agent0-sdk": "^1.5.3",
     "dotenv": "^16.4.7",
     "viem": "^2.23.2"
   },

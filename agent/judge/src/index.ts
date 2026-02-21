@@ -3,6 +3,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { judgeDebate, generateArgument } from "./lib/judge";
 import { getWalletAddress } from "./lib/tee-wallet";
+import { setArgument, getDispute, isReady, clearDispute } from "./lib/argument-store";
+import { validateDebater } from "./lib/escrow-validator";
+import { mountMcpOnExpress } from "./mcp";
 
 dotenv.config();
 
@@ -50,6 +53,89 @@ app.post("/generateArgument", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("[Judge] generateArgument Error:", err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.post("/submitArgument", async (req, res) => {
+  try {
+    const { disputeId, debaterId, argument, topic } = req.body;
+    if (!disputeId || !debaterId || !argument) {
+      res.status(400).json({ error: "disputeId, debaterId, and argument required" });
+      return;
+    }
+
+    const validation = await validateDebater(disputeId as `0x${string}`, debaterId);
+    if (!validation.valid) {
+      res.status(400).json({ error: validation.error });
+      return;
+    }
+
+    const result = setArgument(disputeId, debaterId, argument, topic);
+    if (!result.ok) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+
+    console.log(`[Judge] Argument submitted: disputeId=${disputeId} debaterId=${debaterId}`);
+    res.json({ ok: true, disputeId, debaterId });
+  } catch (err) {
+    console.error("[Judge] submitArgument Error:", err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.get("/dispute/:disputeId", (req, res) => {
+  try {
+    const { disputeId } = req.params;
+    const entry = getDispute(disputeId);
+    if (!entry) {
+      res.json({ disputeId, debaterA: null, debaterB: null, ready: false });
+      return;
+    }
+    res.json({
+      disputeId: entry.disputeId,
+      topic: entry.topic,
+      debaterA: entry.debaterA ? { id: entry.debaterA.id, argumentLength: entry.debaterA.argument.length } : null,
+      debaterB: entry.debaterB ? { id: entry.debaterB.id, argumentLength: entry.debaterB.argument.length } : null,
+      ready: isReady(disputeId),
+    });
+  } catch (err) {
+    console.error("[Judge] getDispute Error:", err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+mountMcpOnExpress(app);
+
+app.post("/judgeFromDispute", async (req, res) => {
+  try {
+    const { disputeId } = req.body;
+    if (!disputeId) {
+      res.status(400).json({ error: "disputeId required" });
+      return;
+    }
+
+    const entry = getDispute(disputeId);
+    if (!entry?.debaterA || !entry?.debaterB) {
+      res.status(400).json({ error: "both arguments required; use POST /submitArgument first" });
+      return;
+    }
+
+    const topic = entry.topic || process.env.DEBATE_TOPIC || "Resolve this dispute fairly.";
+    const result = await judgeDebate({
+      topic,
+      debaterA: entry.debaterA,
+      debaterB: entry.debaterB,
+      disputeId,
+      winnerAddress: entry.debaterA.id,
+    });
+
+    clearDispute(disputeId);
+    console.log(`[Judge] Verdict from dispute: disputeId=${disputeId} winner=${result.verdict.winner}`);
+    res.json(result);
+  } catch (err) {
+    console.error("[Judge] judgeFromDispute Error:", err);
     res.status(500).json({ error: String(err) });
   }
 });

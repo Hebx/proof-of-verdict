@@ -26,6 +26,9 @@ const JUDGE_URL =
 const JUDGE_TIMEOUT_MS = 120_000;
 const DEBATE_TOPIC =
   process.env.DEBATE_TOPIC ?? "Is decentralized AI more trustworthy than centralized AI?";
+const DEBATE_MODE = process.env.DEBATE_MODE ?? "demo"; // "demo" | "agent"
+const ARG_POLL_INTERVAL_MS = parseInt(process.env.ARG_POLL_INTERVAL_MS ?? "5000", 10);
+const ARG_DEADLINE_MS = parseInt(process.env.ARG_DEADLINE_MS ?? "3600000", 10); // 1 hour
 
 if (!RPC_URL || !PRIVATE_KEY) {
   console.error("Missing BASE_SEPOLIA_RPC or PRIVATE_KEY in .env");
@@ -155,11 +158,17 @@ async function requestVerdict(
   payee: Address,
 ): Promise<TeeJudgeResponse> {
   // Step 0: Get live debate arguments from both agents
-  console.log("[PoV Listener] Agent A (payer) generating PRO argument…");
+  const t0 = Date.now();
+  console.log(`[PoV Listener] LLM 1/3: Agent A (PRO) generating argument @ ${new Date().toISOString()}…`);
   const argA = await generateArgument("pro", `Payer ${payer} argues for.`);
-  console.log("[PoV Listener] Agent B (payee) generating CON argument…");
+  console.log(`[PoV Listener] LLM 1/3: Agent A done in ${Date.now() - t0}ms — "${argA.slice(0, 80)}${argA.length > 80 ? "…" : ""}"`);
+
+  const t1 = Date.now();
+  console.log(`[PoV Listener] LLM 2/3: Agent B (CON) generating argument @ ${new Date().toISOString()}…`);
   const argB = await generateArgument("con", `Payee ${payee} argues against.`);
-  console.log("[PoV Listener] Arguments received, requesting verdict…");
+  console.log(`[PoV Listener] LLM 2/3: Agent B done in ${Date.now() - t1}ms — "${argB.slice(0, 80)}${argB.length > 80 ? "…" : ""}"`);
+
+  console.log(`[PoV Listener] LLM 3/3: Requesting verdict from Judge @ ${new Date().toISOString()}…`);
 
   const body: TeeJudgeRequest = {
     topic: DEBATE_TOPIC,
@@ -169,11 +178,13 @@ async function requestVerdict(
     winnerAddress: payer, // Fallback only; judge uses verdict.winner for signing
   };
 
+  const t2 = Date.now();
   const res = await fetch(`${JUDGE_URL}/judge`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  console.log(`[PoV Listener] LLM 3/3: Verdict received in ${Date.now() - t2}ms`);
 
   if (!res.ok) {
     const text = await res.text();
@@ -181,6 +192,36 @@ async function requestVerdict(
   }
 
   return res.json() as Promise<TeeJudgeResponse>;
+}
+
+async function getDisputeStatus(disputeId: Hex): Promise<{ ready: boolean }> {
+  const res = await fetch(`${JUDGE_URL}/dispute/${disputeId}`);
+  if (!res.ok) return { ready: false };
+  const data = (await res.json()) as { ready?: boolean };
+  return { ready: !!data.ready };
+}
+
+async function requestVerdictFromDispute(disputeId: Hex): Promise<TeeJudgeResponse> {
+  const res = await fetch(`${JUDGE_URL}/judgeFromDispute`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ disputeId }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`judgeFromDispute failed: ${res.status} ${text}`);
+  }
+  return res.json() as Promise<TeeJudgeResponse>;
+}
+
+async function waitForAgentArguments(disputeId: Hex): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < ARG_DEADLINE_MS) {
+    const { ready } = await getDisputeStatus(disputeId);
+    if (ready) return true;
+    await new Promise((r) => setTimeout(r, ARG_POLL_INTERVAL_MS));
+  }
+  return false;
 }
 
 async function registerVerdict(judge: TeeJudgeResponse): Promise<Hex> {
@@ -227,6 +268,7 @@ async function settleEscrow(disputeId: Hex): Promise<Hex> {
 
 async function main() {
   console.log("[PoV Listener] Watching for EscrowOpened events…");
+  console.log(`  Mode     : ${DEBATE_MODE} (DEBATE_MODE=demo|agent)`);
   console.log(`  Registry : ${REGISTRY_ADDRESS}`);
   console.log(`  Escrow   : ${ESCROW_ADDRESS}`);
   console.log(`  Judge    : ${JUDGE_URL}`);
@@ -249,7 +291,7 @@ async function main() {
 async function handleEscrowOpened(log: any) {
   const { disputeId, payer, payee, token, amount, timeout } = log.args;
 
-  console.log(`\n[PoV Listener] EscrowOpened — 2 agents will debate live`);
+  console.log(`\n[PoV Listener] EscrowOpened — mode=${DEBATE_MODE}`);
   console.log(`  Topic   : ${DEBATE_TOPIC}`);
   console.log(`  Dispute : ${disputeId}`);
   console.log(`  Payer   : ${payer} (Agent A, PRO)`);
@@ -258,9 +300,21 @@ async function handleEscrowOpened(log: any) {
   console.log(`  Amount  : ${formatUnits(amount, 18)}`);
   console.log(`  Timeout : ${timeout}s`);
 
-  // Step 1 – get signed verdict from TEE Judge
-  console.log("[PoV Listener] Requesting verdict from TEE Judge…");
-  const judgeResult = await requestVerdict(disputeId, payer, payee);
+  let judgeResult: TeeJudgeResponse;
+
+  if (DEBATE_MODE === "agent") {
+    console.log("[PoV Listener] Agent mode: waiting for both agents to submit arguments…");
+    const ready = await waitForAgentArguments(disputeId);
+    if (!ready) {
+      console.error(`[PoV Listener] Timeout: no arguments within ${ARG_DEADLINE_MS / 1000}s. Skipping.`);
+      return;
+    }
+    console.log("[PoV Listener] Both arguments received. Requesting verdict…");
+    judgeResult = await requestVerdictFromDispute(disputeId);
+  } else {
+    console.log("[PoV Listener] Demo mode: generating arguments via Judge…");
+    judgeResult = await requestVerdict(disputeId, payer, payee);
+  }
 
   const sv = judgeResult.signedVerdict;
   const v = judgeResult.verdict;
