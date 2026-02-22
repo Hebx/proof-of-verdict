@@ -52,6 +52,27 @@ const escrowAbi = [
   },
   {
     type: "function",
+    name: "getEscrow",
+    inputs: [{ name: "disputeId", type: "bytes32" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "token", type: "address" },
+          { name: "payer", type: "address" },
+          { name: "payee", type: "address" },
+          { name: "amount", type: "uint256" },
+          { name: "createdAt", type: "uint64" },
+          { name: "timeout", type: "uint64" },
+          { name: "settled", type: "bool" },
+          { name: "refunded", type: "bool" },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "settle",
     inputs: [{ name: "disputeId", type: "bytes32" }],
     outputs: [],
@@ -264,6 +285,39 @@ async function settleEscrow(disputeId: Hex): Promise<Hex> {
   return hash;
 }
 
+const MIN_CONFIDENCE = 6000;
+
+async function validateVerdictForSettlement(
+  disputeId: Hex,
+  signedVerdict: TeeJudgeResponse["signedVerdict"],
+): Promise<{ valid: boolean; error?: string }> {
+  const escrow = await publicClient.readContract({
+    address: ESCROW_ADDRESS,
+    abi: escrowAbi,
+    functionName: "getEscrow",
+    args: [disputeId],
+  });
+  if (!escrow || escrow.payer === "0x0000000000000000000000000000000000000000") {
+    return { valid: false, error: "escrow does not exist" };
+  }
+  const { payload } = signedVerdict;
+  const winner = payload.winner.toLowerCase();
+  if (winner !== escrow.payer.toLowerCase() && winner !== escrow.payee.toLowerCase()) {
+    return { valid: false, error: "winner must be payer or payee" };
+  }
+  const conf = parseInt(payload.confidenceBps, 10);
+  if (!Number.isInteger(conf) || conf < MIN_CONFIDENCE) {
+    return { valid: false, error: `confidenceBps must be >= ${MIN_CONFIDENCE}` };
+  }
+  if (!signedVerdict.signature || signedVerdict.signature.length < 2) {
+    return { valid: false, error: "signature required" };
+  }
+  if (payload.disputeId !== disputeId) {
+    return { valid: false, error: "disputeId mismatch" };
+  }
+  return { valid: true };
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -323,6 +377,22 @@ async function handleEscrowOpened(log: any) {
   console.log(`  Confidence    : ${sv.payload.confidenceBps} bps`);
   console.log(`  Reasoning     : ${v.reasoning}`);
   console.log(`  Signer (TEE)  : ${sv.signer}`);
+
+  const status = (judgeResult as { validationStatus?: string }).validationStatus ?? "valid";
+  console.log(`[PoV Listener] verdict validationStatus: ${status}`);
+  if (status === "fallback") {
+    console.warn(`[PoV Listener] WARN: fallback used for disputeId ${disputeId}`);
+  }
+  const summary = (judgeResult as { scoreSummary?: { scoreA: number; scoreB: number } }).scoreSummary;
+  if (summary) {
+    console.log(`[PoV Listener] scoreSummary:`, summary);
+  }
+
+  const val = await validateVerdictForSettlement(disputeId, judgeResult.signedVerdict);
+  if (!val.valid) {
+    console.error(`[PoV Listener] Verdict validation failed: ${val.error}`);
+    return;
+  }
 
   // Step 2 – register verdict on-chain
   console.log("[PoV Listener] Registering verdict on VerdictRegistry…");
