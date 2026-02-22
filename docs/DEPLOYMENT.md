@@ -218,3 +218,7 @@ Verify VerdictRegistry signer is set to the TEE wallet. Ensure verdict winner is
 ### registerVerdict reverts with 0x51a9dbdb
 
 This is `VerdictAlreadyRegistered`. The verdict was already registered (e.g. by the listener). Use `settle-dispute` to complete settlement; it will skip registration and call `settle` directly.
+
+### submitArgument returns "escrow does not exist"
+
+The Judge validates escrow on-chain using its own `POV_ESCROW_ADDRESS` and `BASE_SEPOLIA_RPC` (from `agent/judge/.env.tee` at deploy time). If your repo `.env` uses different contract addresses (e.g. a different escrow deployment), the Judge will not see that escrow. Use the same escrow/registry addresses the Judge was deployed with, or redeploy the Judge with your current contract addresses.

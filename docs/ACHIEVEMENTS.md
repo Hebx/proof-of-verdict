@@ -13,6 +13,8 @@ Live verification of core ProofOfVerdict capabilities on Base Sepolia + EigenCom
 
 The TEE Judge (EigenCompute, Intel TDX) is live and responding.
 
+**Phase 2 redeploy (2026-02-22):** Judge image rebuilt and upgraded via `./scripts/deploy-tee.sh`. App ID: `0x865104D466143234Cc503E9025CBe54a9131a51A`. Dashboard: [verify-sepolia.eigencloud.xyz](https://verify-sepolia.eigencloud.xyz/app/0x865104D466143234Cc503E9025CBe54a9131a51A). Set `JUDGE_URL` in `.env` to the current Judge API base (from dashboard or existing endpoint) for E2E and listener.
+
 ---
 
 ## Agent-Mode E2E
@@ -32,6 +34,12 @@ JUDGE_URL=http://35.233.167.89:3001 ./scripts/e2e-agent-mode.sh
 ```
 
 See [AGENT_INTEGRATION.md](AGENT_INTEGRATION.md) for agent integration details.
+
+---
+
+## Real-Data E2E (e2e-real.sh)
+
+Script path verified: `./scripts/e2e-real.sh` runs listener (agent mode) → open-escrow → submit-two-arguments. Full settlement requires the TEE Judge to use the **same** `POV_ESCROW_ADDRESS` (and `VERDICT_REGISTRY_ADDRESS`) as in the repo root `.env`; otherwise `POST /submitArgument` returns `400 {"error":"escrow does not exist"}` because the Judge validates escrow on-chain using its own env (see [DEPLOYMENT.md](DEPLOYMENT.md)#troubleshooting).
 
 ---
 
