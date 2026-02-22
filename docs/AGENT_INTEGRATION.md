@@ -92,3 +92,7 @@ import { ProofOfVerdictAgent } from "proof-of-verdict/sdk";  // or path to sdk/s
 const agent = new ProofOfVerdictAgent({ judgeUrl, rpcUrl, privateKey });
 await agent.submitArgument(disputeId, myAddress, "My argument...");
 ```
+
+### E2E with Two Agents (Real Data)
+
+For a single-command E2E using real token (e.g. USDC Base Sepolia) and two logical agents, run `./scripts/e2e-real.sh`. The script uses the same SDK to submit both arguments (optionally with arguments from Judge `generateArgument`). In production, replace this with two independent services or agents each calling `ProofOfVerdictAgent#submitArgument`.
