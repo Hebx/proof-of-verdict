@@ -140,6 +140,8 @@ To run E2E with real token and agent-originated arguments:
 2. Run: `./scripts/e2e-real.sh`
 3. Flow: listener (agent mode) starts → escrow opens with USDC → two agents submit arguments via SDK (arguments from Judge generateArgument) → listener runs Judge and settles.
 
+open-escrow approves the escrow; ensure the payer has sufficient token balance (and for USDC, testnet USDC from Circle if needed).
+
 Real data means: real chain (Base Sepolia), real Judge (TEE), real token (USDC testnet), and arguments submitted via `POST /submitArgument` (no hardcoded strings in the E2E script).
 
 ---
@@ -221,4 +223,9 @@ This is `VerdictAlreadyRegistered`. The verdict was already registered (e.g. by 
 
 ### submitArgument returns "escrow does not exist"
 
-The Judge validates escrow on-chain using its own `POV_ESCROW_ADDRESS` and `BASE_SEPOLIA_RPC` (from `agent/judge/.env.tee` at deploy time). If your repo `.env` uses different contract addresses (e.g. a different escrow deployment), the Judge will not see that escrow. Use the same escrow/registry addresses the Judge was deployed with, or redeploy the Judge with your current contract addresses.
+The Judge validates escrow on-chain using its own `POV_ESCROW_ADDRESS` and `BASE_SEPOLIA_RPC` (from `agent/judge/.env.tee` at deploy time). If your repo `.env` uses different contract addresses (e.g. a different escrow deployment), the Judge will not see that escrow.
+
+**Fix (choose one):**
+
+1. **Align repo with Judge:** Set `VERDICT_REGISTRY_ADDRESS` and `POV_ESCROW_ADDRESS` in your root `.env` to the same values as in `agent/judge/.env.tee.example` (or the env the Judge was deployed with). Then use a token you have approved on that escrow (e.g. MockERC20 from that deployment or USDC Base Sepolia).
+2. **Align Judge with repo:** Redeploy the Judge with your addresses: put your `VERDICT_REGISTRY_ADDRESS`, `POV_ESCROW_ADDRESS`, and `BASE_SEPOLIA_RPC` into `agent/judge/.env.tee`, then run `./scripts/deploy-tee.sh`.

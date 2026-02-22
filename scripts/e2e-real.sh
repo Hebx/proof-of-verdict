@@ -65,12 +65,11 @@ cd "$ROOT"
 
 # 4. Wait for listener (settlement) or timeout
 echo "[4/4] Waiting for listener (up to 120s)..."
-wait "$LISTENER_PID" 2>/dev/null || true
-# If listener already exited, wait returns immediately; if still running, wait until it exits or we timeout
 for _ in $(seq 1 24); do
   kill -0 "$LISTENER_PID" 2>/dev/null || break
   sleep 5
 done
 kill "$LISTENER_PID" 2>/dev/null || true
+wait "$LISTENER_PID" 2>/dev/null || true
 
 echo "Done. Check output above for settlement."
