@@ -130,6 +130,20 @@ npm run listener
 
 ---
 
+### E2E with Real Data (USDC + Two Agents)
+
+To run E2E with real token and agent-originated arguments:
+
+1. Set in `.env`:
+   - `POV_TOKEN_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e` (USDC Base Sepolia; get testnet USDC from Circle testnet faucet if needed).
+   - `JUDGE_URL`, `BASE_SEPOLIA_RPC`, `PRIVATE_KEY`, `PAYEE_ADDRESS`.
+2. Run: `./scripts/e2e-real.sh`
+3. Flow: listener (agent mode) starts → escrow opens with USDC → two agents submit arguments via SDK (arguments from Judge generateArgument) → listener runs Judge and settles.
+
+Real data means: real chain (Base Sepolia), real Judge (TEE), real token (USDC testnet), and arguments submitted via `POST /submitArgument` (no hardcoded strings in the E2E script).
+
+---
+
 ## 4. settle-dispute (Manual Settlement)
 
 When the verdict is already registered but the escrow was not settled (e.g. listener restarted), run:
