@@ -39,7 +39,7 @@ See [AGENT_INTEGRATION.md](AGENT_INTEGRATION.md) for agent integration details.
 
 ## Real-Data E2E (e2e-real.sh)
 
-Script path verified: `./scripts/e2e-real.sh` runs listener (agent mode) → open-escrow → submit-two-arguments. Full settlement requires the TEE Judge to use the **same** `POV_ESCROW_ADDRESS` (and `VERDICT_REGISTRY_ADDRESS`) as in the repo root `.env`; otherwise `POST /submitArgument` returns `400 {"error":"escrow does not exist"}` because the Judge validates escrow on-chain using its own env (see [DEPLOYMENT.md](DEPLOYMENT.md)#troubleshooting).
+Real-data E2E verified with settlement: `./scripts/e2e-real.sh` runs listener (agent mode) → open-escrow → submit-two-arguments → Judge verdict → registerVerdict → settle. Align repo `.env` with Judge TEE env (`VERDICT_REGISTRY_ADDRESS`, `POV_ESCROW_ADDRESS` same as `agent/judge/.env.tee`); otherwise `POST /submitArgument` returns `400 {"error":"escrow does not exist"}` (see [DEPLOYMENT.md](DEPLOYMENT.md)#troubleshooting).
 
 ---
 
