@@ -7,7 +7,8 @@
     "open-escrow": "tsx open-escrow.ts",
     "register-judge": "tsx register-judge-agent.ts",
     "settle-dispute": "tsx settle-dispute.ts",
-    "derive-dispute-id": "tsx derive-dispute-id.ts"
+    "derive-dispute-id": "tsx derive-dispute-id.ts",
+    "submit-two-arguments": "tsx submit-two-arguments.ts"
   },
   "dependencies": {
     "agent0-sdk": "^1.5.3",
