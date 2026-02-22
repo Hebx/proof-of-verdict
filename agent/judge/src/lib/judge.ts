@@ -2,6 +2,49 @@ import OpenAI from "openai";
 import { keccak256, toHex, type Hex } from "viem";
 import { signVerdict, type SignedVerdict } from "./verdict-signer";
 
+const MIN_CONFIDENCE = 6000;
+
+function tieBreaker(disputeId: Hex, debaterA: string, debaterB: string): string {
+  const bit = Number(BigInt(keccak256(toHex(disputeId))) % 2n);
+  return bit === 0 ? debaterA : debaterB;
+}
+
+function validateVerdict(
+  verdict: { winner?: string; confidenceBps?: number; scores?: Record<string, unknown> },
+  debaterA: string,
+  debaterB: string
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  const a = debaterA.toLowerCase();
+  const b = debaterB.toLowerCase();
+  const w = String(verdict.winner ?? "").toLowerCase();
+  if (w !== a && w !== b) errors.push(`winner must be ${a} or ${b}`);
+  const conf = Number(verdict.confidenceBps);
+  if (!Number.isInteger(conf) || conf < MIN_CONFIDENCE) errors.push(`confidenceBps must be integer >= ${MIN_CONFIDENCE}`);
+  const scores = verdict.scores;
+  if (!scores || typeof scores !== "object") errors.push("scores required");
+  else {
+    for (const key of ["debaterA", "debaterB"]) {
+      const s = scores[key];
+      if (!s || typeof s !== "object") errors.push(`scores.${key} required`);
+      else
+        for (const f of ["logic", "evidence", "persuasion"]) {
+          const v = (s as Record<string, unknown>)[f];
+          if (typeof v !== "number" || v < 1 || v > 10) errors.push(`scores.${key}.${f} must be 1-10`);
+        }
+    }
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+function sumScores(s: Record<string, unknown> | null | undefined): number {
+  if (!s || typeof s !== "object") return 0;
+  const logic = Number((s as Record<string, unknown>).logic) || 0;
+  const evidence = Number((s as Record<string, unknown>).evidence) || 0;
+  const persuasion = Number((s as Record<string, unknown>).persuasion) || 0;
+  return logic + evidence + persuasion;
+}
+
 let _openai: OpenAI | null = null;
 
 function getClient(): OpenAI {
