@@ -10,7 +10,7 @@ function tieBreaker(disputeId: Hex, debaterA: string, debaterB: string): string 
 }
 
 function validateVerdict(
-  verdict: { winner?: string; confidenceBps?: number; scores?: Record<string, unknown> },
+  verdict: { winner?: string; confidenceBps?: number; scores?: Record<string, unknown> | null },
   debaterA: string,
   debaterB: string
 ): { valid: boolean; errors: string[] } {
@@ -21,7 +21,7 @@ function validateVerdict(
   if (w !== a && w !== b) errors.push(`winner must be ${a} or ${b}`);
   const conf = Number(verdict.confidenceBps);
   if (!Number.isInteger(conf) || conf < MIN_CONFIDENCE) errors.push(`confidenceBps must be integer >= ${MIN_CONFIDENCE}`);
-  const scores = verdict.scores;
+  const scores = verdict.scores ?? undefined;
   if (!scores || typeof scores !== "object") errors.push("scores required");
   else {
     for (const key of ["debaterA", "debaterB"]) {
@@ -90,6 +90,12 @@ interface JudgeResult {
   eigenaiSeed?: number;
   /** EigenAI response signature when available (verifiable inference) */
   eigenaiSignature?: string;
+  /** "valid" | "fallback" (fallback when LLM output failed validation) */
+  validationStatus: "valid" | "fallback";
+  /** Present when validationStatus === "fallback" */
+  validationErrors?: string[];
+  /** Aggregated scores for telemetry */
+  scoreSummary: { scoreA: number; scoreB: number };
 }
 
 export async function judgeDebate(input: DebateInput): Promise<JudgeResult> {
@@ -136,7 +142,12 @@ Respond ONLY with valid JSON, no markdown:
   const judgeElapsed = Date.now() - judgeStart;
   console.log(`[Judge] LLM judge: done in ${judgeElapsed}ms, raw: ${raw.slice(0, 150)}...`);
 
-  let verdict;
+  let verdict: {
+    winner?: string;
+    confidenceBps?: number;
+    reasoning?: string;
+    scores?: Record<string, unknown> | null;
+  };
   try {
     const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     verdict = JSON.parse(cleaned);
@@ -148,6 +159,31 @@ Respond ONLY with valid JSON, no markdown:
       scores: null,
     };
   }
+
+  const validation = validateVerdict(verdict, input.debaterA.id, input.debaterB.id);
+  let validationStatus: "valid" | "fallback";
+  let validationErrors: string[] | undefined;
+  if (!validation.valid) {
+    validationStatus = "fallback";
+    validationErrors = validation.errors;
+    const scoreA = sumScores(verdict.scores?.debaterA as Record<string, unknown> | undefined);
+    const scoreB = sumScores(verdict.scores?.debaterB as Record<string, unknown> | undefined);
+    let fallbackWinner: string;
+    if (scoreA > scoreB) fallbackWinner = input.debaterA.id;
+    else if (scoreB > scoreA) fallbackWinner = input.debaterB.id;
+    else {
+      const disputeIdForTie = (input.disputeId as Hex) ?? ("0x0000000000000000000000000000000000000000000000000000000000000000" as Hex);
+      fallbackWinner = tieBreaker(disputeIdForTie, input.debaterA.id, input.debaterB.id);
+    }
+    verdict.winner = fallbackWinner;
+    verdict.confidenceBps = MIN_CONFIDENCE;
+  } else {
+    validationStatus = "valid";
+  }
+  const scoreSummary = {
+    scoreA: sumScores(verdict.scores?.debaterA as Record<string, unknown> | undefined),
+    scoreB: sumScores(verdict.scores?.debaterB as Record<string, unknown> | undefined),
+  };
 
   const transcriptHash = keccak256(toHex(JSON.stringify(input)));
   const issuedAt = new Date().toISOString();
@@ -163,10 +199,11 @@ Respond ONLY with valid JSON, no markdown:
   if (input.disputeId && winnerAddr) {
     try {
       const now = Math.floor(Date.now() / 1000);
+      const confidenceBps = Number(verdict.confidenceBps) || MIN_CONFIDENCE;
       signedVerdict = await signVerdict({
         disputeId: input.disputeId as Hex,
         winner: winnerAddr as Hex,
-        confidenceBps: BigInt(verdict.confidenceBps),
+        confidenceBps: BigInt(confidenceBps),
         issuedAt: BigInt(now),
         deadline: BigInt(now + 86400),
         nonce: BigInt(now),
@@ -195,14 +232,24 @@ Respond ONLY with valid JSON, no markdown:
 
   const eigenaiSignature = (response as { signature?: string }).signature;
 
+  const normalizedVerdict = {
+    winner: verdict.winner ?? input.debaterA.id,
+    confidenceBps: Number(verdict.confidenceBps) || MIN_CONFIDENCE,
+    reasoning: verdict.reasoning ?? "",
+    scores: verdict.scores ?? null,
+  };
+
   return {
-    verdict,
+    verdict: normalizedVerdict,
     transcriptHash,
     signedVerdict: serializable as any,
     eigenaiModel: MODEL,
     issuedAt,
     eigenaiSeed: seed,
     ...(eigenaiSignature && { eigenaiSignature }),
+    validationStatus,
+    ...(validationErrors && validationErrors.length > 0 && { validationErrors }),
+    scoreSummary,
   };
 }
 
