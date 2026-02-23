@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {EIP712} from "openzeppelin-contracts/utils/cryptography/EIP712.sol";
-import {ECDSA} from "openzeppelin-contracts/utils/cryptography/ECDSA.sol";
-import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract VerdictRegistry is EIP712, Ownable {
     using ECDSA for bytes32;
@@ -58,7 +58,7 @@ contract VerdictRegistry is EIP712, Ownable {
     error InvalidBps();
     error ZeroAddress();
 
-    constructor(address signer, uint256 minConfidenceBps_) EIP712("VerdictRegistry", "1") {
+    constructor(address signer, uint256 minConfidenceBps_) EIP712("VerdictRegistry", "1") Ownable() {
         if (signer == address(0)) revert ZeroAddress();
         if (minConfidenceBps_ > 10_000) revert InvalidBps();
 

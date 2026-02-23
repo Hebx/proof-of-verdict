@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "openzeppelin-contracts/security/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import {VerdictRegistry} from "./VerdictRegistry.sol";
 
@@ -70,7 +70,7 @@ contract PovEscrowERC20 is Ownable, ReentrancyGuard {
         address arbitratorFeeRecipient_,
         uint256 feeBps_,
         uint256 protocolSplitBps_
-    ) {
+    ) Ownable() {
         if (registry_ == address(0)) revert InvalidRecipient();
         if (protocolFeeRecipient_ == address(0)) revert InvalidRecipient();
         if (arbitratorFeeRecipient_ == address(0)) revert InvalidRecipient();

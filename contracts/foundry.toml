@@ -8,8 +8,8 @@ solc = "/home/openclaw/.local/share/svm/0.8.26/solc-0.8.26"
 src = "src"
 test = "test"
 remappings = [
-  "forge-std/=lib/forge-std/src/",
-  "openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/"
+  "@openzeppelin/=lib/openzeppelin-contracts/",
+  "forge-std/=lib/forge-std/src/"
 ]
 
 [lint]
