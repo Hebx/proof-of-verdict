@@ -4,12 +4,14 @@ pragma solidity ^0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {VerdictRegistry} from "../src/VerdictRegistry.sol";
 import {PovEscrowERC20} from "../src/PovEscrowERC20.sol";
+import {PovReputation} from "../src/PovReputation.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
 
 contract PovEscrowERC20Test is Test {
     VerdictRegistry internal registry;
     PovEscrowERC20 internal escrow;
     MockERC20 internal token;
+    PovReputation internal rep;
 
     uint256 internal signerKey;
     address internal signer;
@@ -24,6 +26,8 @@ contract PovEscrowERC20Test is Test {
         signer = vm.addr(signerKey);
         registry = new VerdictRegistry(signer, 7_000);
         escrow = new PovEscrowERC20(address(registry), protocolFeeRecipient, arbitratorFeeRecipient, 200, 6_000);
+        rep = new PovReputation(address(escrow));
+        escrow.setReputation(address(rep));
 
         token = new MockERC20("Proof Token", "POV");
         token.mint(payer, 1_000_000 ether);
@@ -65,6 +69,16 @@ contract PovEscrowERC20Test is Test {
         assertEq(token.balanceOf(protocolFeeRecipient), protocolFee);
         assertEq(token.balanceOf(arbitratorFeeRecipient), arbitratorFee);
         assertEq(token.balanceOf(address(escrow)), 0);
+
+        // Reputation: winner +10, loser -5 (clamped)
+        (int32 payeeScore, uint32 payeeCompleted, uint32 payeeSuccess) = rep.getReputation(payee);
+        (int32 payerScore, uint32 payerCompleted, uint32 payerSuccess) = rep.getReputation(payer);
+        assertEq(payeeCompleted, 1);
+        assertEq(payeeSuccess, 1);
+        assertEq(payeeScore, 10);
+        assertEq(payerCompleted, 1);
+        assertEq(payerSuccess, 0);
+        assertEq(payerScore, 0);
     }
 
     function testRefundAfterTimeout() public {
@@ -80,5 +94,11 @@ contract PovEscrowERC20Test is Test {
 
         assertEq(token.balanceOf(payer), 1_000_000 ether);
         assertEq(token.balanceOf(address(escrow)), 0);
+
+        // Reputation: refund penalizes payee
+        (int32 payeeScore, uint32 payeeCompleted, uint32 payeeSuccess) = rep.getReputation(payee);
+        assertEq(payeeCompleted, 1);
+        assertEq(payeeSuccess, 0);
+        assertEq(payeeScore, 0);
     }
 }
