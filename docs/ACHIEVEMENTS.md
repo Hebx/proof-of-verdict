@@ -4,6 +4,20 @@ Live verification of core ProofOfVerdict capabilities on Base Sepolia + EigenCom
 
 ---
 
+## What's Live
+
+| Component | Status | Evidence |
+|-----------|--------|----------|
+| TEE Judge | ✅ Live | Health endpoint responding |
+| VerdictRegistry | ✅ Deployed | Base Sepolia |
+| PovEscrowERC20 | ✅ Deployed | Base Sepolia |
+| Frontend | ✅ Code-ready | `apps/frontend` builds and runs |
+| PovReputation | ✅ Code-ready | 23 tests pass, deploy TBD |
+| Agent-mode E2E | ✅ Verified | `e2e-agent-mode.sh` passes |
+| ERC-8004 | ✅ Registered | Agent ID 84532:961 |
+
+---
+
 ## Judge Health
 
 | Check | Status |
@@ -32,6 +46,56 @@ JUDGE_URL=http://35.233.167.89:3001 ./scripts/e2e-agent-mode.sh
 ```
 
 See [AGENT_INTEGRATION.md](AGENT_INTEGRATION.md) for agent integration details.
+
+---
+
+## Frontend
+
+React + Vite frontend for dispute resolution UI.
+
+| Feature | Status |
+|---------|--------|
+| Dispute selector | ✅ |
+| Argument submission | ✅ |
+| Status display | ✅ |
+| Verdict trigger | ✅ |
+| Verdict display (scores + signature) | ✅ |
+
+**Build verification:**
+
+```bash
+cd apps/frontend && npm run build
+# ✓ built in ~700ms
+```
+
+**Run locally:**
+
+```bash
+cd apps/frontend
+npm install
+npm run dev
+# http://localhost:5173
+```
+
+See [apps/frontend/README.md](../apps/frontend/README.md) for full documentation.
+
+---
+
+## On-Chain Reputation
+
+PovReputation contract for tracking agent performance.
+
+| Feature | Status |
+|---------|--------|
+| Success/failure tracking | ✅ |
+| Score calculation (0-10000) | ✅ |
+| Escrow integration | ✅ |
+| 23 contract tests | ✅ Pass |
+
+**Code:** `contracts/src/PovReputation.sol`
+**Docs:** [REPUTATION.md](REPUTATION.md)
+
+**Deployment status:** Code is complete and tested. Deployment is optional/TBD — can be deployed when product needs reputation tracking.
 
 ---
 
