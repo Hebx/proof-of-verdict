@@ -8,6 +8,10 @@ import {ReentrancyGuard} from "openzeppelin-contracts/security/ReentrancyGuard.s
 
 import {VerdictRegistry} from "./VerdictRegistry.sol";
 
+interface IPovReputation {
+    function recordOutcome(address agent, bool success) external;
+}
+
 contract PovEscrowERC20 is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -29,6 +33,7 @@ contract PovEscrowERC20 is Ownable, ReentrancyGuard {
     uint256 public protocolSplitBps;
     address public protocolFeeRecipient;
     address public arbitratorFeeRecipient;
+    address public reputation;
 
     mapping(bytes32 => Escrow) private escrows;
 
@@ -51,6 +56,7 @@ contract PovEscrowERC20 is Ownable, ReentrancyGuard {
     event EscrowRefunded(bytes32 indexed disputeId, address indexed payer, uint256 amount);
     event FeeParamsUpdated(uint256 feeBps, uint256 protocolSplitBps, address protocolFeeRecipient, address arbitratorFeeRecipient);
     event RegistryUpdated(address indexed registry);
+    event ReputationUpdated(address indexed reputation);
 
     error EscrowExists();
     error EscrowMissing();
@@ -109,6 +115,11 @@ contract PovEscrowERC20 is Ownable, ReentrancyGuard {
         emit FeeParamsUpdated(feeBps_, protocolSplitBps_, protocolFeeRecipient_, arbitratorFeeRecipient_);
     }
 
+    function setReputation(address reputation_) external onlyOwner {
+        reputation = reputation_;
+        emit ReputationUpdated(reputation_);
+    }
+
     function openEscrow(
         bytes32 disputeId,
         address token,
@@ -117,7 +128,7 @@ contract PovEscrowERC20 is Ownable, ReentrancyGuard {
         uint64 timeout
     ) external nonReentrant {
         if (escrows[disputeId].payer != address(0)) revert EscrowExists();
-        if (payee == address(0) || token == address(0)) revert InvalidRecipient();
+        if (payee == address(0) || payee == address(this) || token == address(0)) revert InvalidRecipient();
         if (amount == 0) revert InvalidAmount();
         if (timeout == 0) revert InvalidTimeout();
 
@@ -158,6 +169,13 @@ contract PovEscrowERC20 is Ownable, ReentrancyGuard {
         if (arbitratorFee > 0) token.safeTransfer(arbitratorFeeRecipient, arbitratorFee);
         token.safeTransfer(verdict.winner, payout);
 
+        // Optional reputation hook
+        if (reputation != address(0)) {
+            address loser = verdict.winner == escrow.payer ? escrow.payee : escrow.payer;
+            IPovReputation(reputation).recordOutcome(verdict.winner, true);
+            IPovReputation(reputation).recordOutcome(loser, false);
+        }
+
         emit EscrowSettled(disputeId, verdict.winner, payout, fee, protocolFee, arbitratorFee);
     }
 
@@ -170,6 +188,11 @@ contract PovEscrowERC20 is Ownable, ReentrancyGuard {
 
         escrow.refunded = true;
         IERC20(escrow.token).safeTransfer(escrow.payer, escrow.amount);
+
+        // Optional reputation hook: refund penalizes payee (non-delivery) and does not reward payer.
+        if (reputation != address(0)) {
+            IPovReputation(reputation).recordOutcome(escrow.payee, false);
+        }
 
         emit EscrowRefunded(disputeId, escrow.payer, escrow.amount);
     }
