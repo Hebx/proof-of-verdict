@@ -1,0 +1,218 @@
+openapi: 3.0.3
+info:
+  title: ProofOfVerdict Judge API
+  version: 0.1.0
+  description: TEE-attested debate judge. REST only (MCP disabled in production).
+
+servers:
+  - url: http://35.233.167.89:3001
+    description: Production (Base Sepolia)
+
+paths:
+  /:
+    get:
+      summary: Service info
+      responses:
+        "200":
+          description: Service info and TEE wallet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service: { type: string }
+                  version: { type: string }
+                  status: { type: string }
+                  wallet: { type: string }
+
+  /health:
+    get:
+      summary: Liveness probe
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  timestamp: { type: number }
+
+  /wallet:
+    get:
+      summary: TEE wallet address
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  address: { type: string }
+
+  /judge:
+    post:
+      summary: Evaluate debate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topic, debaterA, debaterB, disputeId]
+              properties:
+                topic: { type: string }
+                debaterA:
+                  $ref: "#/components/schemas/Debater"
+                debaterB:
+                  $ref: "#/components/schemas/Debater"
+                disputeId: { type: string }
+                winnerAddress: { type: string }
+      responses:
+        "200":
+          description: Signed verdict
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /generateArgument:
+    post:
+      summary: Generate PRO or CON argument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topic, side]
+              properties:
+                topic: { type: string }
+                side: { type: string, enum: [pro, con] }
+                context: { type: string }
+      responses:
+        "200":
+          description: Generated argument
+        "400":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /submitArgument:
+    post:
+      summary: Submit argument (agent mode)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [disputeId, debaterId, argument]
+              properties:
+                disputeId: { type: string }
+                debaterId: { type: string }
+                argument: { type: string }
+                topic: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  disputeId: { type: string }
+                  debaterId: { type: string }
+        "400":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /dispute/{disputeId}:
+    get:
+      summary: Get dispute status
+      parameters:
+        - name: disputeId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Dispute status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  disputeId: { type: string }
+                  topic: { type: string }
+                  debaterA: { $ref: "#/components/schemas/DebaterSummary" }
+                  debaterB: { $ref: "#/components/schemas/DebaterSummary" }
+                  ready: { type: boolean }
+        "404":
+          description: Dispute not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /judgeFromDispute:
+    post:
+      summary: Trigger verdict when both args submitted
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [disputeId]
+              properties:
+                disputeId: { type: string }
+      responses:
+        "200":
+          description: Signed verdict
+        "400":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+    Debater:
+      type: object
+      required: [id, argument]
+      properties:
+        id: { type: string, description: "Address (payer or payee)" }
+        argument: { type: string }
+    DebaterSummary:
+      type: object
+      properties:
+        id: { type: string }
+        argumentLength: { type: number }
