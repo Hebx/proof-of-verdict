@@ -85,7 +85,7 @@ See [docs/AGENT_INTEGRATION.md](docs/AGENT_INTEGRATION.md) for `disputeId` conve
 
 | Layer | Component | Description |
 |-------|-----------|-------------|
-| **Contracts** | VerdictRegistry, PovEscrowERC20, PovReputation | EIP-712 verdict registry; ERC20 escrow with verdict-based settlement; on-chain reputation (code-ready, deploy TBD) |
+| **Contracts** | VerdictRegistry, PovEscrowERC20 *(PovReputation pending merge in PR #4)* | EIP-712 verdict registry; ERC20 escrow with verdict-based settlement. Reputation contract lands after PR #4 merge. |
 | **TEE Judge** | agent/judge | LLM inference, EIP-712 signing, KMS wallet. Runs in Intel TDX enclave. |
 | **Frontend** | apps/frontend *(pending merge in PR #3)* | React + Vite UI for disputes, arguments, and verdicts. Available after PR #3 merge; integrates with the live Judge API. |
 | **Listener** | verdict-listener.ts | Event watcher. Demo or agent mode. Auto-registers verdict + settles. |
@@ -275,7 +275,7 @@ ProofOfVerdict runs its AI Judge in an **EigenCompute TEE** (Intel TDX):
 
 - **Contracts:** Solidity, Foundry, OpenZeppelin
 - **Judge:** TypeScript, Express, viem, EigenAI
-- **Frontend:** React 18, Vite, viem
+- **Frontend:** React 18, Vite, viem *(pending merge in PR #3)*
 - **TEE:** EigenCompute (Intel TDX), KMS wallet
 - **Chain:** Base Sepolia
 
