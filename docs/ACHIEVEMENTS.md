@@ -53,7 +53,15 @@ See [AGENT_INTEGRATION.md](AGENT_INTEGRATION.md) for agent integration details.
 
 ## Real-Data E2E (e2e-real.sh)
 
-Real-data E2E verified with settlement: `./scripts/e2e-real.sh` runs listener (agent mode) → open-escrow → submit-two-arguments → Judge verdict → registerVerdict → settle. Align repo `.env` with Judge TEE env (`VERDICT_REGISTRY_ADDRESS`, `POV_ESCROW_ADDRESS` same as `agent/judge/.env.tee`); otherwise `POST /submitArgument` returns `400 {"error":"escrow does not exist"}` (see [DEPLOYMENT.md](DEPLOYMENT.md)#troubleshooting).
+Real-data E2E verified with settlement: `./scripts/e2e-real.sh` runs listener (agent mode) → open-escrow → submit-two-arguments → Judge verdict → registerVerdict → settle.
+
+**Latest verified success (Base Sepolia):**
+- disputeId: `0xbdab307b7eb0a833a0afa294416c4b9d646b719969f04e21b4810aa9bec08766`
+- registerVerdict tx: [`0xec78d6824811344506691b1320755f02176899b0dee9dd35eaf81594c9cde3f8`](https://sepolia.basescan.org/tx/0xec78d6824811344506691b1320755f02176899b0dee9dd35eaf81594c9cde3f8)
+- settle tx: [`0xac4019ed229feee8c8c5916f7a7729b5f60867f8b220fece997ea9b021ed12a0`](https://sepolia.basescan.org/tx/0xac4019ed229feee8c8c5916f7a7729b5f60867f8b220fece997ea9b021ed12a0)
+- final state: `settled=true refunded=false`
+
+Align repo `.env` with Judge TEE env (`VERDICT_REGISTRY_ADDRESS`, `POV_ESCROW_ADDRESS` same as `agent/judge/.env.tee`); otherwise `POST /submitArgument` returns `400 {"error":"escrow does not exist"}` (see [DEPLOYMENT.md](DEPLOYMENT.md)#troubleshooting).
 
 ---
 
