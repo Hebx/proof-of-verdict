@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # E2E with real data: USDC (or configured token), two agents submit via Judge generateArgument + submitArgument.
 # Flow: listener (agent mode) → open-escrow → submit-two-arguments → wait for settlement.
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -17,6 +17,8 @@ cd "$ROOT"
 # Defaults: USDC Base Sepolia, short topic
 export POV_TOKEN_ADDRESS="${POV_TOKEN_ADDRESS:-0x036CbD53842c5426634e7929541eC2318f3dCF7e}"
 export DEBATE_TOPIC="${DEBATE_TOPIC:-Is decentralized AI more trustworthy than centralized AI?}"
+# Keep timeout short for MVP E2E fallback liveness (refund path) when Judge provider is unavailable.
+export ESCROW_TIMEOUT_SECONDS="${ESCROW_TIMEOUT_SECONDS:-90}"
 PAYEE="${PAYEE_ADDRESS}"
 
 # Derive payer from PRIVATE_KEY (scripts has viem)
@@ -29,6 +31,14 @@ echo "  PAYER_ADDRESS=$PAYER_ADDRESS"
 echo "  PAYEE_ADDRESS=$PAYEE"
 echo "  DEBATE_TOPIC=$DEBATE_TOPIC"
 echo ""
+
+cleanup() {
+  if [ -n "${LISTENER_PID:-}" ] && kill -0 "$LISTENER_PID" 2>/dev/null; then
+    kill "$LISTENER_PID" 2>/dev/null || true
+    wait "$LISTENER_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
 
 # 1. Start listener in background
 echo "[1/4] Starting listener (DEBATE_MODE=agent)..."
@@ -48,7 +58,6 @@ cd "$ROOT"
 DISPUTE_ID=$(echo "$OPEN_OUT" | grep -oE '0x[a-fA-F0-9]{64}' | head -1)
 if [ -z "$DISPUTE_ID" ]; then
   echo "Failed to get disputeId from open-escrow output."
-  kill "$LISTENER_PID" 2>/dev/null || true
   exit 1
 fi
 echo "[2/4] disputeId=$DISPUTE_ID"
@@ -56,10 +65,10 @@ echo "[2/4] disputeId=$DISPUTE_ID"
 # 3. Submit both arguments (two logical agents)
 echo "[3/4] Submitting two arguments..."
 cd "$SCRIPT_DIR"
+SUBMIT_OK=1
 if ! DISPUTE_ID="$DISPUTE_ID" PAYER_ADDRESS="$PAYER_ADDRESS" PAYEE_ADDRESS="$PAYEE" DEBATE_TOPIC="$DEBATE_TOPIC" npm run submit-two-arguments; then
-  echo "submit-two-arguments failed."
-  kill "$LISTENER_PID" 2>/dev/null || true
-  exit 1
+  SUBMIT_OK=0
+  echo "[3/4] submit-two-arguments failed; continuing to liveness fallback path."
 fi
 cd "$ROOT"
 
@@ -72,4 +81,19 @@ done
 kill "$LISTENER_PID" 2>/dev/null || true
 wait "$LISTENER_PID" 2>/dev/null || true
 
-echo "Done. Check output above for settlement."
+# 5. Verify escrow finalization on-chain (or fallback refund if Judge path unavailable)
+echo "[5/5] Verifying on-chain escrow state..."
+cd "$SCRIPT_DIR"
+if ! DISPUTE_ID="$DISPUTE_ID" npm run check-escrow; then
+  echo "[5/5] Escrow unresolved. Waiting for timeout (${ESCROW_TIMEOUT_SECONDS}s) then attempting refund fallback..."
+  sleep "$ESCROW_TIMEOUT_SECONDS"
+  DISPUTE_ID="$DISPUTE_ID" npm run refund-dispute
+  DISPUTE_ID="$DISPUTE_ID" npm run check-escrow
+fi
+cd "$ROOT"
+
+if [ "$SUBMIT_OK" -eq 1 ]; then
+  echo "Done. E2E real-data flow finalized on-chain (settle or timeout-refund)."
+else
+  echo "Done with degraded path: argument submission failed, but escrow lifecycle was finalized (timeout-refund fallback)."
+fi

@@ -58,6 +58,13 @@ const erc20Abi = [
     outputs: [{ type: "bool" }],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "decimals",
+    inputs: [],
+    outputs: [{ type: "uint8" }],
+    stateMutability: "view",
+  },
 ] as const;
 
 async function main() {
@@ -96,13 +103,19 @@ async function main() {
     console.log("[open-escrow] disputeId (random):", disputeId);
   }
 
-  const amount = parseUnits("100", 18);
-  const timeout = 86400; // 1 day
+  const tokenDecimals = await publicClient.readContract({
+    address: TOKEN_ADDRESS,
+    abi: erc20Abi,
+    functionName: "decimals",
+  });
+  const amountStr = process.env.ESCROW_AMOUNT ?? "1";
+  const amount = parseUnits(amountStr, tokenDecimals);
+  const timeout = Number(process.env.ESCROW_TIMEOUT_SECONDS ?? "86400"); // 1 day
 
   console.log("[open-escrow] Payer:", account.address);
   console.log("[open-escrow] Payee:", PAYEE);
   console.log("[open-escrow] Token:", TOKEN_ADDRESS);
-  console.log("[open-escrow] Amount: 100 POV");
+  console.log(`[open-escrow] Amount: ${amountStr} tokens (decimals=${tokenDecimals})`);
   if (TOPIC) console.log("[open-escrow] Topic:", TOPIC);
 
   // 1. Approve escrow (payer must already have tokens from DeployMockERC20)

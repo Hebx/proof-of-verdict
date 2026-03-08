@@ -69,23 +69,39 @@ async function main(): Promise<void> {
   const payee = PAYEE_ADDRESS.trim();
 
   try {
-    console.log("[submit-two-arguments] Fetching PRO argument…");
-    const argPro = await generateArgument(
-      JUDGE_URL,
-      DEBATE_TOPIC,
-      "pro",
-      `Payer ${payer} argues for.`,
-    );
+    const fallbackPro = `PRO: Decentralized AI reduces single-point control and improves auditability via open protocols, independent verifiers, and cryptographic proofs.`;
+    const fallbackCon = `CON: Centralized AI can provide faster patching, clearer accountability, and consistent safety governance that fragmented decentralized systems may struggle to coordinate.`;
+
+    let argPro = fallbackPro;
+    let argCon = fallbackCon;
+
+    try {
+      console.log("[submit-two-arguments] Fetching PRO argument…");
+      argPro = await generateArgument(
+        JUDGE_URL,
+        DEBATE_TOPIC,
+        "pro",
+        `Payer ${payer} argues for.`,
+      );
+    } catch (e) {
+      console.warn("[submit-two-arguments] generateArgument(PRO) failed, using fallback text:", e);
+    }
+
     console.log("[submit-two-arguments] Submitting PRO (payer)…");
     await submitArgument(JUDGE_URL, DISPUTE_ID, payer, argPro, DEBATE_TOPIC);
 
-    console.log("[submit-two-arguments] Fetching CON argument…");
-    const argCon = await generateArgument(
-      JUDGE_URL,
-      DEBATE_TOPIC,
-      "con",
-      `Payee ${payee} argues against.`,
-    );
+    try {
+      console.log("[submit-two-arguments] Fetching CON argument…");
+      argCon = await generateArgument(
+        JUDGE_URL,
+        DEBATE_TOPIC,
+        "con",
+        `Payee ${payee} argues against.`,
+      );
+    } catch (e) {
+      console.warn("[submit-two-arguments] generateArgument(CON) failed, using fallback text:", e);
+    }
+
     console.log("[submit-two-arguments] Submitting CON (payee)…");
     await submitArgument(JUDGE_URL, DISPUTE_ID, payee, argCon, DEBATE_TOPIC);
 

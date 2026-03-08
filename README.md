@@ -155,7 +155,11 @@ Edit `.env`:
 | `BASE_SEPOLIA_RPC` | Yes | Use [Alchemy](https://dashboard.alchemy.com): `https://base-sepolia.g.alchemy.com/v2/YOUR_KEY` |
 | `PRIVATE_KEY` | Yes | Wallet for escrow/contracts |
 | `PAYEE_ADDRESS` | E2E | Opponent (default: TEE wallet) |
-| `POV_TOKEN_ADDRESS` | E2E | ERC20 (deploy MockERC20 first) |
+| `POV_ESCROW_ADDRESS` | E2E | Escrow contract address (defaults to current live deployment in scripts) |
+| `POV_TOKEN_ADDRESS` | E2E | ERC20 token address (USDC Base Sepolia supported) |
+| `ESCROW_AMOUNT` | E2E | Human amount (default `1`, auto-scaled by token decimals) |
+| `ESCROW_TIMEOUT_SECONDS` | E2E | Escrow timeout in seconds used by `open-escrow` and fallback refund wait (default `90` for MVP runbook) |
+| `JUDGE_URL` | E2E | Judge API base URL used by listener + argument submission scripts |
 
 ### 2. Deploy Contracts (First Time)
 
@@ -194,6 +198,22 @@ npm run open-escrow                  # Terminal 2
 # Then: POST /submitArgument for payer and payee (see docs/AGENT_INTEGRATION.md)
 ```
 
+**MVP real-data E2E (production liveness runbook):**
+
+```bash
+./scripts/e2e-real.sh
+```
+
+Behavior:
+- Opens escrow using token-aware amount parsing (`ESCROW_AMOUNT`, token `decimals()`).
+- Submits two arguments (`POST /submitArgument`); if `generateArgument` is unavailable, uses deterministic fallback argument text.
+- Verifies on-chain finalization with `npm run check-escrow`.
+- If verdict/settlement path is unavailable, waits escrow timeout (`ESCROW_TIMEOUT_SECONDS`) then executes payer refund (`npm run refund-dispute`) to prove end-to-end liveness.
+
+Expected terminal outcome:
+- Success path: `settled=true refunded=false`
+- Timeout fallback path: `settled=false refunded=true`
+
 **Web UI (frontend):**
 
 ```bash
@@ -230,6 +250,7 @@ See [docs/API.md](docs/API.md) for schemas and examples.
 | **Identity** | KMS-injected wallet, non-extractable |
 | **Verdict** | EIP-712 typed signature, on-chain validation |
 | **Settlement** | VerdictRegistry + PovEscrowERC20 |
+| **Reputation hook safety** | Escrow settlement/refund continues even if reputation hook reverts (failure emitted) |
 
 **Never commit secrets.** Use `.env` (gitignored). See [SECURITY.md](SECURITY.md).
 
