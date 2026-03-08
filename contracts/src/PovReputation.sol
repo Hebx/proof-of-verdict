@@ -31,7 +31,7 @@ contract PovReputation is Ownable {
 
     function recordOutcome(address agent, bool success) external {
         if (msg.sender != escrow) revert Unauthorized();
-        if (agent == address(0)) revert InvalidRecipient();
+        if (agent == address(0) || agent == escrow) revert InvalidRecipient();
 
         completedJobs[agent] += 1;
         if (success) {
