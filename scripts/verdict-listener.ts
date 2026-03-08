@@ -102,6 +102,31 @@ const registryAbi = [
     outputs: [{ name: "", type: "bytes32" }],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "getVerdict",
+    inputs: [{ name: "disputeId", type: "bytes32" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "winner", type: "address" },
+          { name: "confidenceBps", type: "uint256" },
+          { name: "issuedAt", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "nonce", type: "uint256" }
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "verdictRegistered",
+    inputs: [{ name: "disputeId", type: "bytes32" }],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+  },
 ] as const;
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -142,6 +167,7 @@ interface TeeJudgeResponse {
 // ── Clients ─────────────────────────────────────────────────────────────────
 
 const account = privateKeyToAccount(PRIVATE_KEY);
+const inFlightDisputes = new Set<string>();
 
 const publicClient = createPublicClient({
   chain: baseSepolia,
@@ -245,8 +271,16 @@ async function waitForAgentArguments(disputeId: Hex): Promise<boolean> {
   return false;
 }
 
-async function registerVerdict(judge: TeeJudgeResponse): Promise<Hex> {
+async function registerVerdict(judge: TeeJudgeResponse): Promise<Hex | null> {
   const { payload, signature } = judge.signedVerdict;
+
+  const already = await publicClient.readContract({
+    address: REGISTRY_ADDRESS,
+    abi: registryAbi,
+    functionName: "verdictRegistered",
+    args: [payload.disputeId],
+  });
+  if (already) return null;
 
   const { request } = await publicClient.simulateContract({
     address: REGISTRY_ADDRESS,
@@ -283,6 +317,22 @@ async function settleEscrow(disputeId: Hex): Promise<Hex> {
   const hash = await walletClient.writeContract(request);
   await publicClient.waitForTransactionReceipt({ hash });
   return hash;
+}
+
+async function waitForVerdictOnRegistry(disputeId: Hex, maxAttempts = 12, delayMs = 2000): Promise<boolean> {
+  for (let i = 1; i <= maxAttempts; i++) {
+    const v = await publicClient.readContract({
+      address: REGISTRY_ADDRESS,
+      abi: registryAbi,
+      functionName: "getVerdict",
+      args: [disputeId],
+    });
+    if (v?.winner && v.winner !== "0x0000000000000000000000000000000000000000") {
+      return true;
+    }
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return false;
 }
 
 const MIN_CONFIDENCE = 6000;
@@ -344,7 +394,13 @@ async function main() {
 
 async function handleEscrowOpened(log: any) {
   const { disputeId, payer, payee, token, amount, timeout } = log.args;
+  if (inFlightDisputes.has(disputeId)) {
+    console.log(`[PoV Listener] Skipping duplicate event for dispute ${disputeId}`);
+    return;
+  }
+  inFlightDisputes.add(disputeId);
 
+  try {
   console.log(`\n[PoV Listener] EscrowOpened — mode=${DEBATE_MODE}`);
   console.log(`  Topic   : ${DEBATE_TOPIC}`);
   console.log(`  Dispute : ${disputeId}`);
@@ -397,7 +453,14 @@ async function handleEscrowOpened(log: any) {
   // Step 2 – register verdict on-chain
   console.log("[PoV Listener] Registering verdict on VerdictRegistry…");
   const regTx = await registerVerdict(judgeResult);
-  console.log(`  TX: ${regTx}`);
+  if (regTx) console.log(`  TX: ${regTx}`);
+  else console.log("  Verdict already registered, continuing.");
+
+  const visible = await waitForVerdictOnRegistry(disputeId);
+  if (!visible) {
+    console.error("[PoV Listener] Verdict not yet visible on registry after registration tx; skipping settle for this cycle.");
+    return;
+  }
 
   // Step 3 – settle the escrow
   console.log("[PoV Listener] Settling escrow…");
@@ -405,6 +468,9 @@ async function handleEscrowOpened(log: any) {
   console.log(`  TX: ${settleTx}`);
 
   console.log("[PoV Listener] Done ✓");
+  } finally {
+    inFlightDisputes.delete(disputeId);
+  }
 }
 
 main().catch((err) => {

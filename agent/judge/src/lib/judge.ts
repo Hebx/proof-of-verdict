@@ -131,14 +131,19 @@ Respond ONLY with valid JSON, no markdown:
   const judgeStart = Date.now();
   console.log(`[Judge] LLM judge: requesting verdict (${MODEL}, seed=${seed})...`);
 
-  const response = await getClient().chat.completions.create({
-    model: MODEL,
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0,
-    seed,
-  } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
-
-  const raw = response.choices[0]?.message?.content || '{"error": "No verdict"}';
+  let response: OpenAI.Chat.Completions.ChatCompletion | null = null;
+  let raw = '{"error":"fallback"}';
+  try {
+    response = await getClient().chat.completions.create({
+      model: MODEL,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0,
+      seed,
+    } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
+    raw = response.choices[0]?.message?.content || '{"error": "No verdict"}';
+  } catch (err) {
+    console.warn("[Judge] LLM judge failed, using deterministic fallback:", err);
+  }
   const judgeElapsed = Date.now() - judgeStart;
   console.log(`[Judge] LLM judge: done in ${judgeElapsed}ms, raw: ${raw.slice(0, 150)}...`);
 
@@ -230,7 +235,7 @@ Respond ONLY with valid JSON, no markdown:
       }
     : null;
 
-  const eigenaiSignature = (response as { signature?: string }).signature;
+  const eigenaiSignature = (response as { signature?: string } | null)?.signature;
 
   const normalizedVerdict = {
     winner: verdict.winner ?? input.debaterA.id,
@@ -269,15 +274,23 @@ ${context ? `Context: ${context}` : ""}
 
 Generate a persuasive, logical, evidence-based argument for your side. Keep it under 500 characters.`;
 
-  const response = await getClient().chat.completions.create({
-    model: MODEL,
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.7,
-    max_tokens: 300,
-  });
+  let argument = `No argument for ${side} at this time.`;
+  try {
+    const response = await getClient().chat.completions.create({
+      model: MODEL,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7,
+      max_tokens: 300,
+    });
+    argument = response.choices[0]?.message?.content || argument;
+  } catch (err) {
+    console.warn(`[Judge] LLM generateArgument failed for ${side.toUpperCase()}, using fallback:`, err);
+    argument =
+      side === "pro"
+        ? `PRO: Decentralized AI improves transparency and reduces single points of control through open protocols and verifiable execution.`
+        : `CON: Centralized AI can provide stronger operational accountability, coordinated safety controls, and faster response to incidents.`;
+  }
 
-  const argument =
-    response.choices[0]?.message?.content || `No argument for ${side} at this time.`;
   const elapsed = Date.now() - start;
   const trimmed = argument.trim();
   console.log(`[Judge] LLM generateArgument: ${side.toUpperCase()} done in ${elapsed}ms (${trimmed.length} chars)`);
