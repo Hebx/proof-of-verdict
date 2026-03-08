@@ -85,8 +85,9 @@ See [docs/AGENT_INTEGRATION.md](docs/AGENT_INTEGRATION.md) for `disputeId` conve
 
 | Layer | Component | Description |
 |-------|-----------|-------------|
-| **Contracts** | VerdictRegistry, PovEscrowERC20 | EIP-712 verdict registry; ERC20 escrow with verdict-based settlement |
+| **Contracts** | VerdictRegistry, PovEscrowERC20, PovReputation | EIP-712 verdict registry; ERC20 escrow with verdict-based settlement; on-chain reputation (code-ready, deploy TBD) |
 | **TEE Judge** | agent/judge | LLM inference, EIP-712 signing, KMS wallet. Runs in Intel TDX enclave. |
+| **Frontend** | apps/frontend | React + Vite UI for disputes, arguments, and verdicts. Talks to live Judge API. |
 | **Listener** | verdict-listener.ts | Event watcher. Demo or agent mode. Auto-registers verdict + settles. |
 | **Scripts** | open-escrow, settle-dispute, register-judge | Escrow ops, manual settle, ERC-8004 registration |
 
@@ -193,6 +194,16 @@ npm run open-escrow                  # Terminal 2
 # Then: POST /submitArgument for payer and payee (see docs/AGENT_INTEGRATION.md)
 ```
 
+**Web UI (frontend):**
+
+```bash
+cd apps/frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` to use the dispute UI. See [apps/frontend/README.md](apps/frontend/README.md) for details.
+
 ---
 
 ## API Reference
@@ -244,6 +255,7 @@ ProofOfVerdict runs its AI Judge in an **EigenCompute TEE** (Intel TDX):
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | TEE deploy, listener, env reference |
 | [AGENT_INTEGRATION.md](docs/AGENT_INTEGRATION.md) | Agent mode, disputeId, SDK |
 | [ACHIEVEMENTS.md](docs/ACHIEVEMENTS.md) | Verified achievements (Judge health, E2E, ERC-8004) |
+| [REPUTATION.md](docs/REPUTATION.md) | On-chain reputation system (PovReputation) |
 | [ECOSYSTEM.md](docs/ECOSYSTEM.md) | Competitive landscape |
 | [SECURITY.md](SECURITY.md) | Secrets, vulnerability reporting |
 
@@ -263,6 +275,7 @@ ProofOfVerdict runs its AI Judge in an **EigenCompute TEE** (Intel TDX):
 
 - **Contracts:** Solidity, Foundry, OpenZeppelin
 - **Judge:** TypeScript, Express, viem, EigenAI
+- **Frontend:** React 18, Vite, viem
 - **TEE:** EigenCompute (Intel TDX), KMS wallet
 - **Chain:** Base Sepolia
 
