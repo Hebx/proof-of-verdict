@@ -17,3 +17,6 @@ contracts/broadcast/
 
 # Bun
 bun.lockb
+
+# Git worktrees (isolated workspaces)
+.worktrees/
