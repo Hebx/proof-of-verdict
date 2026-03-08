@@ -144,7 +144,7 @@ To run E2E with real token and agent-originated arguments:
 - `ESCROW_AMOUNT` (human amount, default `1`)
 - `ESCROW_TIMEOUT_SECONDS` (default `90` for MVP liveness runbook)
 
-`e2e-real.sh` verifies on-chain finalization. If the Judge provider is unavailable, it falls back to timeout+`refund` so the run still proves full escrow lifecycle liveness.
+`e2e-real.sh` verifies on-chain finalization. Normal success target is verdict registration + settlement (`settled=true`). If the Judge provider is unavailable, it falls back to timeout+`refund` so the run still proves full escrow lifecycle liveness (`refunded=true`).
 
 Real data means: real chain (Base Sepolia), real Judge endpoint, real token (USDC testnet), and arguments submitted via `POST /submitArgument`. If `generateArgument` is unavailable, script fallback text is used for submission continuity.
 

@@ -10,6 +10,8 @@
 
 
 > **Live on Base Sepolia + EigenCompute** — [Verify TEE](https://verify-sepolia.eigencloud.xyz/app/0x865104D466143234Cc503E9025CBe54a9131a51A)
+>
+> **Production status:** ✅ MVP production-ready runbook validated (verdict+settle success path + timeout/refund degraded-path fallback).
 
 ---
 
@@ -214,6 +216,12 @@ Expected terminal outcome:
 - Success path: `settled=true refunded=false`
 - Timeout fallback path: `settled=false refunded=true`
 
+Latest production proof (Base Sepolia):
+- disputeId: `0xbdab307b7eb0a833a0afa294416c4b9d646b719969f04e21b4810aa9bec08766`
+- registerVerdict tx: `0xec78d6824811344506691b1320755f02176899b0dee9dd35eaf81594c9cde3f8`
+- settle tx: `0xac4019ed229feee8c8c5916f7a7729b5f60867f8b220fece997ea9b021ed12a0`
+- final state: `settled=true refunded=false`
+
 **Web UI (frontend):**
 
 ```bash
@@ -309,6 +317,16 @@ ProofOfVerdict runs its AI Judge in an **EigenCompute TEE** (Intel TDX):
 - [Docker Image](https://github.com/users/Hebx/packages/container/package/pov-judge)
 
 ---
+
+## Production Readiness Checklist
+
+- [x] Contracts merged and tested on main (`forge test` passing)
+- [x] Frontend production build passing
+- [x] Judge redeploy path documented and verified
+- [x] Agent-mode real-data E2E reaches on-chain settlement (`settled=true`)
+- [x] Degraded-path fallback validated (timeout+refund liveness)
+- [x] Listener hardened against duplicate events / registration races
+- [x] Repo branches/prs cleaned (mainline only)
 
 ## Contributing
 
