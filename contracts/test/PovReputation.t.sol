@@ -105,6 +105,12 @@ contract PovReputationTest is Test {
         vm.expectRevert(PovReputation.InvalidRecipient.selector);
         reputation.recordOutcome(address(0), true);
     }
+
+    function testRecordOutcomeRejectsEscrowAsAgent() public {
+        vm.prank(escrow);
+        vm.expectRevert(PovReputation.InvalidRecipient.selector);
+        reputation.recordOutcome(escrow, true);
+    }
     
     function testRecordOutcomeMultipleSuccesses() public {
         vm.startPrank(escrow);

@@ -101,4 +101,14 @@ contract PovEscrowERC20Test is Test {
         assertEq(payeeSuccess, 0);
         assertEq(payeeScore, 0);
     }
+
+    function testOpenEscrowRevertsWhenPayeeIsEscrowAddress() public {
+        bytes32 disputeId = keccak256("dispute-escrow-invalid-payee");
+        uint256 amount = 100 ether;
+
+        vm.prank(payer);
+        vm.expectRevert(PovEscrowERC20.InvalidRecipient.selector);
+        escrow.openEscrow(disputeId, address(token), address(escrow), amount, 1 days);
+    }
+
 }
