@@ -57,6 +57,7 @@ contract PovEscrowERC20 is Ownable, ReentrancyGuard {
     event FeeParamsUpdated(uint256 feeBps, uint256 protocolSplitBps, address protocolFeeRecipient, address arbitratorFeeRecipient);
     event RegistryUpdated(address indexed registry);
     event ReputationUpdated(address indexed reputation);
+    event ReputationHookFailed(bytes32 indexed disputeId, address indexed agent, bool success, bytes reason);
 
     error EscrowExists();
     error EscrowMissing();
@@ -172,8 +173,8 @@ contract PovEscrowERC20 is Ownable, ReentrancyGuard {
         // Optional reputation hook
         if (reputation != address(0)) {
             address loser = verdict.winner == escrow.payer ? escrow.payee : escrow.payer;
-            IPovReputation(reputation).recordOutcome(verdict.winner, true);
-            IPovReputation(reputation).recordOutcome(loser, false);
+            _recordOutcomeSafe(disputeId, verdict.winner, true);
+            _recordOutcomeSafe(disputeId, loser, false);
         }
 
         emit EscrowSettled(disputeId, verdict.winner, payout, fee, protocolFee, arbitratorFee);
@@ -191,7 +192,7 @@ contract PovEscrowERC20 is Ownable, ReentrancyGuard {
 
         // Optional reputation hook: refund penalizes payee (non-delivery) and does not reward payer.
         if (reputation != address(0)) {
-            IPovReputation(reputation).recordOutcome(escrow.payee, false);
+            _recordOutcomeSafe(disputeId, escrow.payee, false);
         }
 
         emit EscrowRefunded(disputeId, escrow.payer, escrow.amount);
@@ -199,5 +200,13 @@ contract PovEscrowERC20 is Ownable, ReentrancyGuard {
 
     function getEscrow(bytes32 disputeId) external view returns (Escrow memory) {
         return escrows[disputeId];
+    }
+
+    function _recordOutcomeSafe(bytes32 disputeId, address agent, bool success) internal {
+        try IPovReputation(reputation).recordOutcome(agent, success) {
+            // no-op
+        } catch (bytes memory reason) {
+            emit ReputationHookFailed(disputeId, agent, success, reason);
+        }
     }
 }

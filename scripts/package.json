@@ -8,7 +8,9 @@
     "register-judge": "tsx register-judge-agent.ts",
     "settle-dispute": "tsx settle-dispute.ts",
     "derive-dispute-id": "tsx derive-dispute-id.ts",
-    "submit-two-arguments": "tsx submit-two-arguments.ts"
+    "submit-two-arguments": "tsx submit-two-arguments.ts",
+    "check-escrow": "tsx check-escrow-state.ts",
+    "refund-dispute": "tsx refund-dispute.ts"
   },
   "dependencies": {
     "agent0-sdk": "^1.5.3",

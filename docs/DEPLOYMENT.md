@@ -138,11 +138,15 @@ To run E2E with real token and agent-originated arguments:
    - `POV_TOKEN_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e` (USDC Base Sepolia; get testnet USDC from Circle testnet faucet if needed).
    - `JUDGE_URL`, `BASE_SEPOLIA_RPC`, `PRIVATE_KEY`, `PAYEE_ADDRESS`.
 2. Run: `./scripts/e2e-real.sh`
-3. Flow: listener (agent mode) starts → escrow opens with USDC → two agents submit arguments via SDK (arguments from Judge generateArgument) → listener runs Judge and settles.
+3. Flow: listener (agent mode) starts → escrow opens with USDC → two agents submit arguments via SDK → listener runs Judge and settles.
 
-open-escrow approves the escrow; ensure the payer has sufficient token balance (and for USDC, testnet USDC from Circle if needed).
+`open-escrow` is token-decimal aware and supports:
+- `ESCROW_AMOUNT` (human amount, default `1`)
+- `ESCROW_TIMEOUT_SECONDS` (default `90` for MVP liveness runbook)
 
-Real data means: real chain (Base Sepolia), real Judge (TEE), real token (USDC testnet), and arguments submitted via `POST /submitArgument` (no hardcoded strings in the E2E script).
+`e2e-real.sh` verifies on-chain finalization. If the Judge provider is unavailable, it falls back to timeout+`refund` so the run still proves full escrow lifecycle liveness.
+
+Real data means: real chain (Base Sepolia), real Judge endpoint, real token (USDC testnet), and arguments submitted via `POST /submitArgument`. If `generateArgument` is unavailable, script fallback text is used for submission continuity.
 
 ---
 
@@ -182,9 +186,11 @@ Requires `PINATA_JWT` in `.env` (get at [pinata.cloud](https://pinata.cloud)). T
 | PRIVATE_KEY | Yes | Deployer/operator wallet |
 | VERDICT_REGISTRY_ADDRESS | No | From DeployPoV output |
 | POV_ESCROW_ADDRESS | No | From DeployPoV output |
-| POV_TOKEN_ADDRESS | E2E | From DeployMockERC20 output |
+| POV_TOKEN_ADDRESS | E2E | Token used by escrow (USDC or mock token) |
+| ESCROW_AMOUNT | E2E | Human amount to escrow (default `1`) |
+| ESCROW_TIMEOUT_SECONDS | E2E | Timeout used by open-escrow and fallback liveness path |
 | PAYEE_ADDRESS | E2E | Opponent address |
-| DEBATE_TOPIC | No | Topic for 2-agent debate (e.g. single-quoted string) |
+| DEBATE_TOPIC | No | Topic for 2-agent debate (quote value if it has spaces) |
 | JUDGE_URL | No | TEE Judge endpoint |
 | ECLOUD_PRIVATE_KEY | TEE deploy | EigenCloud deployer key |
 | PINATA_JWT | register-judge | Pinata JWT for ERC-8004 registration |
@@ -220,6 +226,15 @@ Verify VerdictRegistry signer is set to the TEE wallet. Ensure verdict winner is
 ### registerVerdict reverts with 0x51a9dbdb
 
 This is `VerdictAlreadyRegistered`. The verdict was already registered (e.g. by the listener). Use `settle-dispute` to complete settlement; it will skip registration and call `settle` directly.
+
+### Judge endpoints return 500 with upstream 403
+
+If `generateArgument` / `judgeFromDispute` return `500` with inner `403`, the upstream LLM provider for the Judge is unavailable/unauthorized.
+
+- `submit-two-arguments` now falls back to local static PRO/CON text so argument submission can continue.
+- `e2e-real.sh` then verifies finalization; if verdict generation remains unavailable, it executes timeout+refund fallback to prove escrow liveness.
+
+To restore full settle path, fix Judge provider credentials and redeploy TEE.
 
 ### submitArgument returns "escrow does not exist"
 
