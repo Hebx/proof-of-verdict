@@ -128,7 +128,7 @@ contract PovEscrowERC20 is Ownable, ReentrancyGuard {
         uint64 timeout
     ) external nonReentrant {
         if (escrows[disputeId].payer != address(0)) revert EscrowExists();
-        if (payee == address(0) || token == address(0)) revert InvalidRecipient();
+        if (payee == address(0) || payee == address(this) || token == address(0)) revert InvalidRecipient();
         if (amount == 0) revert InvalidAmount();
         if (timeout == 0) revert InvalidTimeout();
 
