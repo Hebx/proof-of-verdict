@@ -4,15 +4,15 @@ Live verification of core ProofOfVerdict capabilities on Base Sepolia + EigenCom
 
 ---
 
-## What's Live
+## What's Live (and What's Pending Merge)
 
 | Component | Status | Evidence |
 |-----------|--------|----------|
 | TEE Judge | ✅ Live | Health endpoint responding |
 | VerdictRegistry | ✅ Deployed | Base Sepolia |
 | PovEscrowERC20 | ✅ Deployed | Base Sepolia |
-| Frontend | ✅ Code-ready | `apps/frontend` builds and runs |
-| PovReputation | ✅ Code-ready | 23 tests pass, deploy TBD |
+| Frontend | ⏳ Pending merge (PR #3) | Code exists in PR #3; not yet on `main` |
+| PovReputation | ⏳ Pending merge (PR #4) | Code/tests in PR #4; not yet on `main` |
 | Agent-mode E2E | ✅ Verified | `e2e-agent-mode.sh` passes |
 | ERC-8004 | ✅ Registered | Agent ID 84532:961 |
 
@@ -49,9 +49,9 @@ See [AGENT_INTEGRATION.md](AGENT_INTEGRATION.md) for agent integration details.
 
 ---
 
-## Frontend
+## Frontend (Pending Merge: PR #3)
 
-React + Vite frontend for dispute resolution UI.
+React + Vite frontend for dispute resolution UI. This section documents pending-merge work and is not yet available on `main`.
 
 | Feature | Status |
 |---------|--------|
@@ -77,13 +77,13 @@ npm run dev
 # http://localhost:5173
 ```
 
-See [apps/frontend/README.md](../apps/frontend/README.md) for full documentation.
+Frontend documentation ships with PR #3 (pending merge).
 
 ---
 
-## On-Chain Reputation
+## On-Chain Reputation (Pending Merge: PR #4)
 
-PovReputation contract for tracking agent performance.
+PovReputation contract for tracking agent performance. This section documents pending-merge work and is not yet available on `main`.
 
 | Feature | Status |
 |---------|--------|
@@ -93,7 +93,7 @@ PovReputation contract for tracking agent performance.
 | 23 contract tests | ✅ Pass |
 
 **Code:** `contracts/src/PovReputation.sol`
-**Docs:** [REPUTATION.md](REPUTATION.md)
+**Docs:** Included with PR #4 (pending merge)
 
 **Deployment status:** Code is complete and tested. Deployment is optional/TBD — can be deployed when product needs reputation tracking.
 

@@ -87,7 +87,7 @@ See [docs/AGENT_INTEGRATION.md](docs/AGENT_INTEGRATION.md) for `disputeId` conve
 |-------|-----------|-------------|
 | **Contracts** | VerdictRegistry, PovEscrowERC20, PovReputation | EIP-712 verdict registry; ERC20 escrow with verdict-based settlement; on-chain reputation (code-ready, deploy TBD) |
 | **TEE Judge** | agent/judge | LLM inference, EIP-712 signing, KMS wallet. Runs in Intel TDX enclave. |
-| **Frontend** | apps/frontend | React + Vite UI for disputes, arguments, and verdicts. Talks to live Judge API. |
+| **Frontend** | apps/frontend *(pending merge in PR #3)* | React + Vite UI for disputes, arguments, and verdicts. Available after PR #3 merge; integrates with the live Judge API. |
 | **Listener** | verdict-listener.ts | Event watcher. Demo or agent mode. Auto-registers verdict + settles. |
 | **Scripts** | open-escrow, settle-dispute, register-judge | Escrow ops, manual settle, ERC-8004 registration |
 
@@ -194,7 +194,7 @@ npm run open-escrow                  # Terminal 2
 # Then: POST /submitArgument for payer and payee (see docs/AGENT_INTEGRATION.md)
 ```
 
-**Web UI (frontend):**
+**Web UI (frontend, pending merge in PR #3):**
 
 ```bash
 cd apps/frontend
@@ -202,7 +202,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173` to use the dispute UI. See [apps/frontend/README.md](apps/frontend/README.md) for details.
+Open `http://localhost:5173` to use the dispute UI after PR #3 merges. Frontend docs are included in that pending merge.
 
 ---
 
@@ -255,7 +255,7 @@ ProofOfVerdict runs its AI Judge in an **EigenCompute TEE** (Intel TDX):
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | TEE deploy, listener, env reference |
 | [AGENT_INTEGRATION.md](docs/AGENT_INTEGRATION.md) | Agent mode, disputeId, SDK |
 | [ACHIEVEMENTS.md](docs/ACHIEVEMENTS.md) | Verified achievements (Judge health, E2E, ERC-8004) |
-| [REPUTATION.md](docs/REPUTATION.md) | On-chain reputation system (PovReputation) |
+| Reputation docs *(pending merge in PR #4)* | On-chain reputation system (PovReputation), documented once PR #4 lands |
 | [ECOSYSTEM.md](docs/ECOSYSTEM.md) | Competitive landscape |
 | [SECURITY.md](SECURITY.md) | Secrets, vulnerability reporting |
 
