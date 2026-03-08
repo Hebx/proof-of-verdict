@@ -130,6 +130,22 @@ npm run listener
 
 ---
 
+### E2E with Real Data (USDC + Two Agents)
+
+To run E2E with real token and agent-originated arguments:
+
+1. Set in `.env`:
+   - `POV_TOKEN_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e` (USDC Base Sepolia; get testnet USDC from Circle testnet faucet if needed).
+   - `JUDGE_URL`, `BASE_SEPOLIA_RPC`, `PRIVATE_KEY`, `PAYEE_ADDRESS`.
+2. Run: `./scripts/e2e-real.sh`
+3. Flow: listener (agent mode) starts → escrow opens with USDC → two agents submit arguments via SDK (arguments from Judge generateArgument) → listener runs Judge and settles.
+
+open-escrow approves the escrow; ensure the payer has sufficient token balance (and for USDC, testnet USDC from Circle if needed).
+
+Real data means: real chain (Base Sepolia), real Judge (TEE), real token (USDC testnet), and arguments submitted via `POST /submitArgument` (no hardcoded strings in the E2E script).
+
+---
+
 ## 4. settle-dispute (Manual Settlement)
 
 When the verdict is already registered but the escrow was not settled (e.g. listener restarted), run:
@@ -204,3 +220,12 @@ Verify VerdictRegistry signer is set to the TEE wallet. Ensure verdict winner is
 ### registerVerdict reverts with 0x51a9dbdb
 
 This is `VerdictAlreadyRegistered`. The verdict was already registered (e.g. by the listener). Use `settle-dispute` to complete settlement; it will skip registration and call `settle` directly.
+
+### submitArgument returns "escrow does not exist"
+
+The Judge validates escrow on-chain using its own `POV_ESCROW_ADDRESS` and `BASE_SEPOLIA_RPC` (from `agent/judge/.env.tee` at deploy time). If your repo `.env` uses different contract addresses (e.g. a different escrow deployment), the Judge will not see that escrow.
+
+**Fix (choose one):**
+
+1. **Align repo with Judge:** Set `VERDICT_REGISTRY_ADDRESS` and `POV_ESCROW_ADDRESS` in your root `.env` to the same values as in `agent/judge/.env.tee.example` (or the env the Judge was deployed with). Then use a token you have approved on that escrow (e.g. MockERC20 from that deployment or USDC Base Sepolia).
+2. **Align Judge with repo:** Redeploy the Judge with your addresses: put your `VERDICT_REGISTRY_ADDRESS`, `POV_ESCROW_ADDRESS`, and `BASE_SEPOLIA_RPC` into `agent/judge/.env.tee`, then run `./scripts/deploy-tee.sh`.
